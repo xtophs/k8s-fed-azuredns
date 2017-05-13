@@ -20,21 +20,31 @@ package azuredns
 import (
 	"fmt"
 	"io"
-
+	//"bytes"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
+	gcfg "gopkg.in/gcfg.v1"
+
 )
 
 const (
 	ProviderName = "azure-azuredns"
 )
 
+type GConfig struct {
+	Global struct {
+		TokenURL  string `gcfg:"token-url"`
+		TokenBody string `gcfg:"token-body"`
+		ProjectID string `gcfg:"project-id"`
+	}
+}
 type Config struct {
 	Global struct {
-		subscriptionID string `gcfg:"subscriptionID"`
-		clientID       string `gcfg:"clientID"`
-		secret         string `gcfg:"secret"`
-		tenantID       string `gcfg:"tenantID"`
+		SubscriptionID string `gcfg:"subscription-id"`
+		ClientID       string `gcfg:"client-id"`
+		Secret         string `gcfg:"secret"`
+		TenantID       string `gcfg:"tenant-id"`
+		ResourceGroup  string `gcfg:"resourceGroup"`
 	}
 }
 
@@ -49,14 +59,15 @@ func init() {
 // newazuredns creates a new instance of an AWS azuredns DNS Interface.
 func newazuredns(config io.Reader) (*Interface, error) {
 
-	// TODO: create config struct
-	// This is test data
-	azConfig := NewAzureDNSConfig("ffa90503-6fe8-4ab5-9bf1-059f81a6d8bb",
-		"delete-dns",
-		"66841164-1e0e-4ffc-a0d2-ce36f95ec41d",
-		"eebec4ca-c175-45dc-b763-943607ce4838",
-		"9f4ba4e0-be35-4821-9aa6-4caadfaba4fa")
-	glog.V(4).Infof("Azure DNS config: %v", config)
+	var azConfig Config
+	if err := gcfg.ReadInto(&azConfig, config); err != nil {
+		glog.Errorf("Couldn't read config: %v", err)
+		return nil, err
+		}
+		
+	// TODO
+	// check config
+	glog.V(4).Infof("Azure DNS config: %v", azConfig)
 
-	return NewClients(*azConfig), nil
+	return NewClients(azConfig), nil
 }

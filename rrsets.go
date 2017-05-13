@@ -17,12 +17,11 @@ limitations under the License.
 package azuredns
 
 import (
-	"fmt"
-
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
 	"github.com/Azure/go-autorest/autorest/to"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
+	"github.com/golang/glog"
 )
 
 // Compile time check for interface adherence
@@ -35,7 +34,7 @@ type ResourceRecordSets struct {
 func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error) {
 
 	svc := *rrsets.zone.zones.interface_.service
-	fmt.Printf("LISTING RecordSets for zone %s in rg %s\n", rrsets.zone.Name(), svc.GetResourceGroupName())
+	glog.V(5).Infof("LISTING RecordSets for zone %s in rg %s\n", rrsets.zone.Name(), svc.GetResourceGroupName())
 
 	result, err := svc.GetRecordSetsClient().ListByDNSZone(
 		svc.GetResourceGroupName(),
@@ -51,15 +50,15 @@ func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error)
 
 	for i := range *result.Value {
 		var r []dns.RecordSet = *result.Value
-		fmt.Printf("recordset data: %s, %i\n", *r[i].Name, *r[i].TTL)
+		glog.V(5).Infof("recordset data: %s, %i\n", *r[i].Name, *r[i].TTL)
 		list[i] = &ResourceRecordSet{&(r[i]), &rrsets}
 	}
 
 	return list, err
 }
 
-func (rrsets ResourceRecordSets) Get(name string) (dnsprovider.ResourceRecordSet, error) {
-	fmt.Printf("GETTING  RecordSets for zone %s\n", rrsets.zone.Name())
+func (rrsets ResourceRecordSets) Get(name string) ([]dnsprovider.ResourceRecordSet, error) {
+	glog.V(5).Infof("GETTING  RecordSets for zone %s\n", rrsets.zone.Name())
 	var newRrset dnsprovider.ResourceRecordSet
 	rrsetList, err := rrsets.List()
 	if err != nil {
@@ -71,7 +70,9 @@ func (rrsets ResourceRecordSets) Get(name string) (dnsprovider.ResourceRecordSet
 			break
 		}
 	}
-	return newRrset, nil
+	arr := make([]dnsprovider.ResourceRecordSet, 1) 
+	arr[0] = newRrset
+	return arr, nil
 }
 
 func (r ResourceRecordSets) StartChangeset() dnsprovider.ResourceRecordChangeset {
@@ -82,7 +83,6 @@ func (r ResourceRecordSets) StartChangeset() dnsprovider.ResourceRecordChangeset
 }
 
 func (r ResourceRecordSets) New(name string, rrdatas []string, ttl int64, rrstype rrstype.RrsType) dnsprovider.ResourceRecordSet {
-
 	rrstypeStr := string(rrstype)
 	rrs := &dns.RecordSet{
 		Name: &name,

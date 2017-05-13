@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
-	"github.com/Azure/azure-sdk-for-go/arm/examples/helpers"
+	"github.com/xtophs/azure-sdk-for-go/arm/examples/helpers"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/golang/glog"
@@ -44,30 +44,22 @@ type AzureDNSAPI interface {
 
 type Clients struct {
 	rc      dns.RecordSetsClient
-	conf    *azureDnsConfig
+	conf    Config
 	confMap map[string]string
 }
 
-type azureDnsConfig struct {
-	subscriptionId string
-	resourceGroup  string
-	tenantId       string
-	clientId       string
-	secret         string
-}
-
-func NewAzureDNSConfig(subId string, resGroup string, tenantId string, clientId string, secret string) *azureDnsConfig {
-	return &azureDnsConfig{
-		subId,
-		resGroup,
-		tenantId,
-		clientId,
-		secret,
-	}
-}
+// func NewAzureDNSConfig(subId string, resGroup string, tenantId string, clientId string, secret string) *azureDnsConfig {
+// 	return &azureDnsConfig{
+// 		subId,
+// 		resGroup,
+// 		tenantId,
+// 		clientId,
+// 		secret,
+// 	}
+// }
 
 func (a Clients) GetZonesClient() *dns.ZonesClient {
-	zc := dns.NewZonesClient(a.conf.subscriptionId)
+	zc := dns.NewZonesClient(a.conf.Global.SubscriptionID)
 	spt, err := helpers.NewServicePrincipalTokenFromCredentials(a.confMap, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
 		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
@@ -75,12 +67,11 @@ func (a Clients) GetZonesClient() *dns.ZonesClient {
 	}
 
 	zc.Authorizer = autorest.NewBearerAuthorizer(spt)
-	fmt.Printf("Got new zc\n")
 	return &zc
 }
 
 func (a Clients) GetRecordSetsClient() *dns.RecordSetsClient {
-	rc := dns.NewRecordSetsClient(a.conf.subscriptionId)
+	rc := dns.NewRecordSetsClient(a.conf.Global.SubscriptionID)
 	spt, err := helpers.NewServicePrincipalTokenFromCredentials(a.confMap, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
 		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
@@ -92,7 +83,7 @@ func (a Clients) GetRecordSetsClient() *dns.RecordSetsClient {
 }
 
 func (a Clients) GetResourceGroupName() string {
-	return a.conf.resourceGroup
+	return a.conf.Global.ResourceGroup
 }
 
 // New builds an Interface, with a specified azurednsAPI implementation.
@@ -101,14 +92,14 @@ func New(service *AzureDNSAPI) *Interface {
 	return &Interface{service}
 }
 
-func NewClients(config azureDnsConfig) *Interface {
+func NewClients(config Config) *Interface {
 
 	// TODO
 	c := map[string]string{
-		"AZURE_CLIENT_ID":       config.clientId,
-		"AZURE_CLIENT_SECRET":   config.secret,
-		"AZURE_SUBSCRIPTION_ID": config.subscriptionId,
-		"AZURE_TENANT_ID":       config.tenantId}
+		"AZURE_CLIENT_ID":       config.Global.ClientID,
+		"AZURE_CLIENT_SECRET":   config.Global.Secret,
+		"AZURE_SUBSCRIPTION_ID": config.Global.SubscriptionID,
+		"AZURE_TENANT_ID":       config.Global.TenantID}
 
 	if err := checkEnvVar(&c); err != nil {
 		glog.Fatalf("Error in config: %v", err)
@@ -118,13 +109,10 @@ func NewClients(config azureDnsConfig) *Interface {
 	var clients *Clients
 	clients = &Clients{}
 
-	glog.V(4).Infof("Created Azure DNS clients for subscription: %s", config.subscriptionId)
-	fmt.Printf("Created Azure DNS clients for subscription: %\n", config.subscriptionId)
+	glog.V(4).Infof("Created Azure DNS clients for subscription: %s", config.Global.SubscriptionID)
 
-	clients.conf = &config
+	clients.conf = config
 	clients.confMap = c
-
-	fmt.Printf("Azure DNS Clients set up\n")
 	var api AzureDNSAPI = clients
 	return &Interface{&api}
 }

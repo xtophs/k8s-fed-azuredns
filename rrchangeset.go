@@ -40,19 +40,16 @@ type ResourceRecordChangeset struct {
 }
 
 func (c *ResourceRecordChangeset) Add(rrset dnsprovider.ResourceRecordSet) dnsprovider.ResourceRecordChangeset {
-	fmt.Printf("ChangeSet Add\n")
 	c.additions = append(c.additions, rrset)
 	return c
 }
 
 func (c *ResourceRecordChangeset) Remove(rrset dnsprovider.ResourceRecordSet) dnsprovider.ResourceRecordChangeset {
-	fmt.Printf("ChangeSet Remove\n")
 	c.removals = append(c.removals, rrset)
 	return c
 }
 
 func (c *ResourceRecordChangeset) Upsert(rrset dnsprovider.ResourceRecordSet) dnsprovider.ResourceRecordChangeset {
-	fmt.Printf("ChangeSet Upsert\n")
 	c.upserts = append(c.upserts, rrset)
 	return c
 }
@@ -67,7 +64,6 @@ func rrDatasToRecordSetProperties(rrsType string, rrDatas []string) *dns.RecordS
 		recs := make([]dns.ARecord, len(rrDatas))
 
 		for i = range rrDatas {
-			fmt.Printf("A data %i is %s\n", i, rrDatas[i])
 			recs[i] = dns.ARecord{
 				Ipv4Address: to.StringPtr(rrDatas[i]),
 			}
@@ -77,7 +73,6 @@ func rrDatasToRecordSetProperties(rrsType string, rrDatas []string) *dns.RecordS
 	case "AAAA":
 		recs := make([]dns.AaaaRecord, len(rrDatas))
 		for i = range rrDatas {
-			fmt.Printf("AAAA data is %s\n", rrDatas[i])
 			recs[i] = dns.AaaaRecord{
 				Ipv6Address: to.StringPtr(rrDatas[i]),
 			}
@@ -86,7 +81,6 @@ func rrDatasToRecordSetProperties(rrsType string, rrDatas []string) *dns.RecordS
 
 	case "CNAME":
 		for i = range rrDatas {
-			fmt.Printf("CNAME data is %s\n", rrDatas[i])
 			props.CnameRecord = &dns.CnameRecord{
 				Cname: to.StringPtr(rrDatas[i]),
 			}
@@ -145,9 +139,7 @@ func fromProviderRrset(rrset dnsprovider.ResourceRecordSet) *dns.RecordSet {
 
 func (c *ResourceRecordChangeset) Apply() error {
 
-	fmt.Printf("ChangeSet Apply\n")
 	zoneName := c.zone.impl.Name
-
 	// TODO
 	// can I combine requests into a batch?
 	// since it looks like the autorest API is request/response we can
@@ -161,17 +153,16 @@ func (c *ResourceRecordChangeset) Apply() error {
 		// TODO Refactor
 		if glog.V(8) {
 			var sb bytes.Buffer
-			sb.WriteString(fmt.Sprintf("\t%s %s\n", removal.Type(), removal.Name))
+			sb.WriteString(fmt.Sprintf("\tRecordSet: %s Type: %s Zone Name %s\n", *rrset.Name, *recType, *zoneName))
 			glog.V(8).Infof("Azure DNS Removal:\n%s", sb.String())
 		}
 
-		fmt.Printf("Deleting record of type %s for zone %s with name %s\n", *recType, *zoneName, *rrset.Name)
 		_, err := svc.GetRecordSetsClient().Delete(
 			svc.GetResourceGroupName(),
 			*zoneName, *rrset.Name, dns.RecordType(*recType), "")
 
 		if err != nil {
-			glog.V(8).Infof("Could not delete DNS %s", removal.Name)
+			glog.V(8).Infof("Could not delete DNS %s", *rrset.Name)
 			return err
 		}
 
@@ -182,11 +173,10 @@ func (c *ResourceRecordChangeset) Apply() error {
 		recType := rrset.Type
 		if glog.V(8) {
 			var sb bytes.Buffer
-			sb.WriteString(fmt.Sprintf("\t%s %s\n", upsert.Type(), upsert.Name))
+			sb.WriteString(fmt.Sprintf("\tRecordSet: %s Type: %s Zone Name %s\n", *rrset.Name, *recType, *zoneName))
 			glog.V(8).Infof("Azure DNS Upsert:\n%s", sb.String())
 		}
 
-		fmt.Printf("Creating new record of type %s for zone %s with name %s\n", *recType, *zoneName, *rrset.Name)
 		_, err := svc.GetRecordSetsClient().CreateOrUpdate(
 			svc.GetResourceGroupName(),
 			*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "")
@@ -203,11 +193,10 @@ func (c *ResourceRecordChangeset) Apply() error {
 
 		if glog.V(8) {
 			var sb bytes.Buffer
-			sb.WriteString(fmt.Sprintf("\t%s %s\n", addition.Type(), addition.Name()))
+			sb.WriteString(fmt.Sprintf("\tRecordSet: %s Type: %s Zone Name %s\n", *rrset.Name, *recType, *zoneName))
 			glog.V(8).Infof("Azure DNS Addition:\n%s", sb.String())
 		}
 
-		fmt.Printf("Creating new record of type %s for zone %s with name %s\n", *recType, *zoneName, *rrset.Name)
 		_, err := svc.GetRecordSetsClient().CreateOrUpdate(svc.GetResourceGroupName(),
 			*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "")
 		if err != nil {

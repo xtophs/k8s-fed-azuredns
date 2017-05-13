@@ -27,7 +27,7 @@ go_library(
 //        "//vendor/github.com/Azure/azure-sdk-for-go:go_default_library",
         "github.com/Azure/azure-sdk-for-go:go_default_library",
         "github.com/Azure/go-autorest:go_default_library",
-        "//vendor/github.com/golang/glog:go_default_library",
+//        "//vendor/github.com/golang/glog:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/util/uuid:go_default_library",
     ],
 )
