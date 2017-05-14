@@ -177,7 +177,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 
 		_, err := svc.GetRecordSetsClient().CreateOrUpdate(
 			svc.GetResourceGroupName(),
-			*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "")
+			*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 
 		if err != nil {
 			glog.V(0).Infof("Could not upsert DNS %s", upsert.Name)
@@ -196,7 +196,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 		}
 
 		_, err := svc.GetRecordSetsClient().CreateOrUpdate(svc.GetResourceGroupName(),
-			*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "")
+			*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 		if err != nil {
 			glog.V(0).Infof("Coul not add DNS %s", addition.Name)
 			return err
