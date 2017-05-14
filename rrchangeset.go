@@ -95,9 +95,6 @@ func recordSetPropertiesToRrDatas(rset *dns.RecordSet) []string {
 	props := rset.RecordSetProperties
 	var rrDatas []string
 
-	fmt.Printf("Record Type %s\n", strings.TrimPrefix(*rset.Type, "Microsoft.Network/dnszones/"))
-	//
-
 	switch strings.TrimPrefix(*rset.Type, "Microsoft.Network/dnszones/") {
 	case "A":
 		rrDatas = make([]string, len(*props.ARecords))
@@ -165,6 +162,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 			glog.V(8).Infof("Could not delete DNS %s", *rrset.Name)
 			return err
 		}
+
 
 	}
 

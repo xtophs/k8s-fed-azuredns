@@ -58,7 +58,13 @@ func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error)
 }
 
 func (rrsets ResourceRecordSets) Get(name string) ([]dnsprovider.ResourceRecordSet, error) {
-	glog.V(5).Infof("GETTING  RecordSets for zone %s\n", rrsets.zone.Name())
+	glog.V(5).Infof("Get!\n")
+	if( rrsets.zone != nil ) {
+		glog.V(5).Infof("GETTING  RecordSets for zone %s\n", rrsets.zone.Name())
+	} else {
+		glog.V(5).Infof("DANGER GETTING zone is nil\n")
+		
+	}
 	var newRrset dnsprovider.ResourceRecordSet
 	rrsetList, err := rrsets.List()
 	if err != nil {
@@ -70,8 +76,11 @@ func (rrsets ResourceRecordSets) Get(name string) ([]dnsprovider.ResourceRecordS
 			break
 		}
 	}
-	arr := make([]dnsprovider.ResourceRecordSet, 1) 
-	arr[0] = newRrset
+	var arr []dnsprovider.ResourceRecordSet
+	if newRrset != nil {
+		arr := make([]dnsprovider.ResourceRecordSet, 1) 
+		arr[0] = newRrset
+	} 
 	return arr, nil
 }
 

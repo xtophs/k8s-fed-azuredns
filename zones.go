@@ -32,17 +32,16 @@ type Zones struct {
 
 func (zones Zones) List() ([]dnsprovider.Zone, error) {
 	svc := *zones.interface_.service
+
+	glog.V(5).Infof("Requesting zones")
 	// request all 100 zones. 100 is the current limit per subscription
 	azZoneList, err := svc.GetZonesClient().List(to.Int32Ptr(100))
 	var zoneList []dnsprovider.Zone
-	zoneList = make([]dnsprovider.Zone, len(*azZoneList.Value))
 
 	if err == nil {
 		glog.V(5).Infof("got %i zones\n", len(*azZoneList.Value))
-		for i := range *azZoneList.Value {
-			l := *azZoneList.Value
-			zone := l[i]
-			zoneList[i] = &Zone{&zone, &zones}
+		for _, zone := range *azZoneList.Value {
+			zoneList = append( zoneList, &Zone{&zone, &zones}) 
 		}
 	} else {
 		glog.V(5).Infof("Error listing: %s\n", err.Error())
