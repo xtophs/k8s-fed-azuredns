@@ -35,7 +35,7 @@ func (zones Zones) List() ([]dnsprovider.Zone, error) {
 
 	glog.V(5).Infof("Requesting zones")
 	// request all 100 zones. 100 is the current limit per subscription
-	azZoneList, err := svc.GetZonesClient().List(to.Int32Ptr(100))
+	azZoneList, err := svc.ListZones()
 	var zoneList []dnsprovider.Zone
 
 	if err == nil {
@@ -59,7 +59,7 @@ func (zones Zones) Add(zone dnsprovider.Zone) (dnsprovider.Zone, error) {
 	}
 
 	glog.V(4).Infof("Creating Zone: %s, in resource group: %s\n", zoneName, svc.GetResourceGroupName())
-	_, err := svc.GetZonesClient().CreateOrUpdate(
+	_, err := svc.CreateOrUpdateZone(
 		svc.GetResourceGroupName(),
 		zoneName, *zoneParam, "", "")
 
@@ -77,7 +77,7 @@ func (zones Zones) Remove(zone dnsprovider.Zone) error {
 	svc := *zones.interface_.service
 
 	glog.V(4).Infof("Removing Azure DNS zone ID: %s, Name: %s rg: %s\n", zone.ID(), zone.Name(), svc.GetResourceGroupName())
-	_, err := svc.GetZonesClient().Delete(svc.GetResourceGroupName(),
+	_, err := svc.DeleteZone(svc.GetResourceGroupName(),
 		zone.Name(), "", nil)
 	errval := <- err 
 	if errval != nil {

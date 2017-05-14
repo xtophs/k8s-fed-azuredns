@@ -54,29 +54,19 @@ func NewAzureDNSAPIStub() *AzureDNSAPIStub {
 	}
 }
 
-type FakeZonesClient struct {
-	dns.ManagementClient
-	//zones map[string]*dns.Zone
-}
-
-type FakeRecordSetsClient struct {
-	dns.ManagementClient
-	//recordSets map[string]map[string][]*dns.RecordSet
-}
-
-func (client FakeZonesClient) CreateOrUpdate(resourceGroupName string, zoneName string, parameters dns.Zone, ifMatch string, ifNoneMatch string) (result dns.Zone, err error) {
+func (api *AzureDNSAPIStub) RecordSetCreateOrUpdate(resourceGroupName string, zoneName string, parameters dns.Zone, ifMatch string, ifNoneMatch string) (result dns.Zone, err error) {
 	// TODO
 	fmt.Printf("Testing ZonesClient CreateOrUpdate")
 	return dns.Zone{}, nil
 }
 
-func (a AzureDNSAPIStub) GetZonesClient() *dns.ZonesClient {
+func (a *AzureDNSAPIStub) ListZones() []dns.Zones {
 	fake := FakeZonesClient{}
 	c := dns.ZonesClient(fake)
 	return &c // *dns.ZonesClient(&FakeZonesClient{})
 }
 
-func (a AzureDNSAPIStub) GetRecordSetsClient() *dns.RecordSetsClient {
+func (a *AzureDNSAPIStub) GetRecordSetsClient() *dns.RecordSetsClient {
 	fake := FakeRecordSetsClient{}
 
 	var c dns.RecordSetsClient

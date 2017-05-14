@@ -25,25 +25,29 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
+	"github.com/Azure/go-autorest/autorest/to"
 )
 
 // Compile time check for interface adherence
 var _ dnsprovider.Interface = Interface{}
 
-var _ AzureDNSAPI = Clients{}
+var _ AzureDNSAPI = &Clients{}
 
 type Interface struct {
 	service *AzureDNSAPI
 }
 
 type AzureDNSAPI interface {
-	GetZonesClient() *dns.ZonesClient
 	GetRecordSetsClient() *dns.RecordSetsClient
 	GetResourceGroupName() string
+	ListZones( )( dns.ZoneListResult, error )
+	CreateOrUpdateZone( rgName string, zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (dns.Zone, error)
+	DeleteZone( rgName string, zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error)
 }
 
 type Clients struct {
 	rc      dns.RecordSetsClient
+	zc      dns.ZonesClient
 	conf    Config
 	confMap map[string]string
 }
@@ -58,19 +62,19 @@ type Clients struct {
 // 	}
 // }
 
-func (a Clients) GetZonesClient() *dns.ZonesClient {
-	zc := dns.NewZonesClient(a.conf.Global.SubscriptionID)
-	spt, err := helpers.NewServicePrincipalTokenFromCredentials(a.confMap, azure.PublicCloud.ResourceManagerEndpoint)
-	if err != nil {
-		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
-		return nil
-	}
-
-	zc.Authorizer = autorest.NewBearerAuthorizer(spt)
-	return &zc
+func( c *Clients ) ListZones() ( dns.ZoneListResult, error) {
+	return c.zc.List( to.Int32Ptr(100))
 }
 
-func (a Clients) GetRecordSetsClient() *dns.RecordSetsClient {
+func( c *Clients ) CreateOrUpdateZone(   rgName string, zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (  dns.Zone, error) {
+	return c.zc.CreateOrUpdate(rgName, zoneName, zone, ifMatch, ifNoneMatch )
+}
+
+func( c *Clients ) DeleteZone( rgName string, zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error){
+	return c.zc.Delete( rgName, zoneName, ifMatch,  cancel)
+}
+
+func (a *Clients) GetRecordSetsClient() *dns.RecordSetsClient {
 	rc := dns.NewRecordSetsClient(a.conf.Global.SubscriptionID)
 	spt, err := helpers.NewServicePrincipalTokenFromCredentials(a.confMap, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
@@ -82,13 +86,15 @@ func (a Clients) GetRecordSetsClient() *dns.RecordSetsClient {
 	return &rc
 }
 
-func (a Clients) GetResourceGroupName() string {
+func (a *Clients) GetResourceGroupName() string {
 	return a.conf.Global.ResourceGroup
 }
 
 // New builds an Interface, with a specified azurednsAPI implementation.
 // This is useful for testing purposes, but also if we want an instance with with custom AWS options.
 func New(service *AzureDNSAPI) *Interface {
+
+
 	return &Interface{service}
 }
 
@@ -113,7 +119,27 @@ func NewClients(config Config) *Interface {
 
 	clients.conf = config
 	clients.confMap = c
+
+	clients.zc = dns.NewZonesClient(config.Global.SubscriptionID)
+	spt, err := helpers.NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
+	if err != nil {
+		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
+		return nil
+	}
+
+	clients.zc.Authorizer = autorest.NewBearerAuthorizer(spt)
+
+	clients.rc = dns.NewRecordSetsClient(config.Global.SubscriptionID)
+	spt, err = helpers.NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
+	if err != nil {
+		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
+		return nil
+	}
+
+	clients.rc.Authorizer = autorest.NewBearerAuthorizer(spt)
+
 	var api AzureDNSAPI = clients
+	
 	return &Interface{&api}
 }
 

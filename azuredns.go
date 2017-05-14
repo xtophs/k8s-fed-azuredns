@@ -31,13 +31,6 @@ const (
 	ProviderName = "azure-azuredns"
 )
 
-type GConfig struct {
-	Global struct {
-		TokenURL  string `gcfg:"token-url"`
-		TokenBody string `gcfg:"token-body"`
-		ProjectID string `gcfg:"project-id"`
-	}
-}
 type Config struct {
 	Global struct {
 		SubscriptionID string `gcfg:"subscription-id"`
