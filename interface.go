@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
-	"github.com/xtophs/azure-sdk-for-go/arm/examples/helpers"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/golang/glog"
@@ -78,7 +77,7 @@ func( c *Clients ) CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch s
 	return c.zc.CreateOrUpdate(c.conf.Global.ResourceGroup, zoneName, zone, ifMatch, ifNoneMatch )
 }
 
-func( c *Clients ) DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error){
+func( c *Clients ) DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (result autorest.Response, err error){
 	glog.V(4).Infof("Removing Azure DNS zone Name: %s rg: %s\n", zoneName, c.conf.Global.ResourceGroup)
 	return c.zc.Delete( c.conf.Global.ResourceGroup, zoneName, ifMatch,  cancel)
 }
@@ -112,22 +111,22 @@ func NewClients(config Config) *Interface {
 	clients.confMap = c
 
 	clients.zc = dns.NewZonesClient(config.Global.SubscriptionID)
-	spt, err := helpers.NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
+	spt, err := NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
 		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
 		return nil
 	}
 
-	clients.zc.Authorizer = autorest.NewBearerAuthorizer(spt)
+	clients.zc.Authorizer = spt
 
 	clients.rc = dns.NewRecordSetsClient(config.Global.SubscriptionID)
-	spt, err = helpers.NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
+	spt, err = NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
 		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
 		return nil
 	}
 
-	clients.rc.Authorizer = autorest.NewBearerAuthorizer(spt)
+	clients.rc.Authorizer = spt
 
 	var api azurednstesting.AzureDNSAPI = clients
 	

@@ -75,12 +75,11 @@ func (zones Zones) Remove(zone dnsprovider.Zone) error {
 	svc := *zones.interface_.service
 	_, err := svc.DeleteZone(zone.Name(), "", nil)
 
-	errval := <- err 
-	if errval != nil {
+	if err != nil {
 		// TODO: Fix go azure sdk version
 		// Is now async
-		glog.V(0).Infof("Error Deleting Azure DNS Zone %s %v\n", zone.Name(), errval.Error())
-		return errval
+		glog.V(0).Infof("Error Deleting Azure DNS Zone %s %v\n", zone.Name(), err.Error())
+		return err
 	}
 	return nil
 }

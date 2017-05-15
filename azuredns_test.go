@@ -31,7 +31,7 @@ import (
 	//azurednstesting "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/azure/azuredns/stubs"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/tests"
-	//"github.com/golang/glog"
+
 )
 
 func newTestInterface() (dnsprovider.Interface, error) {
@@ -41,10 +41,10 @@ func newTestInterface() (dnsprovider.Interface, error) {
 	}
 
 	// Use this to test the real cloud service.
-	//i, err := newAzureDNSProvider()
+	i, err := newAzureDNSProvider()
 
 	// Use this to stub out the entire cloud service
-	i, err :=  newFakeInterface() 
+	//i, err :=  newFakeInterface() 
 	return i, err
 }
 

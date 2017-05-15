@@ -77,11 +77,11 @@ func rrDatasToRecordSetProperties(rrsType string, rrDatas []string) *dns.RecordS
 				Ipv6Address: to.StringPtr(rrDatas[i]),
 			}
 		}
-		props.AaaaRecords = &recs
+		props.AAAARecords = &recs
 
 	case "CNAME":
 		for i = range rrDatas {
-			props.CnameRecord = &dns.CnameRecord{
+			props.CNAMERecord = &dns.CnameRecord{
 				Cname: to.StringPtr(rrDatas[i]),
 			}
 		}
@@ -105,16 +105,16 @@ func recordSetPropertiesToRrDatas(rset *dns.RecordSet) []string {
 		}
 
 	case "AAAA":
-		rrDatas = make([]string, len(*props.AaaaRecords))
+		rrDatas = make([]string, len(*props.AAAARecords))
 
-		for i := range *props.AaaaRecords {
-			rec := *props.AaaaRecords
+		for i := range *props.AAAARecords {
+			rec := *props.AAAARecords
 			rrDatas[i] = *rec[i].Ipv6Address
 		}
 
 	case "CNAME":
 		rrDatas = make([]string, 1)
-		rrDatas[0] = *props.CnameRecord.Cname
+		rrDatas[0] = *props.CNAMERecord.Cname
 	}
 
 	return rrDatas

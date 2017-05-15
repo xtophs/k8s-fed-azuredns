@@ -30,7 +30,7 @@ var _ AzureDNSAPI = Api{}
 type AzureDNSAPI interface {
 	ListZones( )( dns.ZoneListResult, error )
 	CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (dns.Zone, error)
-	DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error)
+	DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (result autorest.Response, err error)
 	ListResourceRecordSetsByZone( zoneName string ) (dns.RecordSetListResult, error)
 	CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error)
 	DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error)
@@ -161,29 +161,18 @@ func( a Api ) CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch string
 	return zone, nil
 }
 
-func( a Api ) DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error){
-	err := make( chan error, 1 )
-	result := make( chan dns.ZoneDeleteResult, 1 )
-
-	if len(a.recordSets[zoneName]) > 0 {
-		err <- fmt.Errorf("Error deleting hosted DNS zone: %s has resource records", zoneName)
-
-		return nil, err 	
+func( a Api ) DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (autorest.Response,  error){
+	result := autorest.Response{
 	}
 
-	defer func() {
-		result <- dns.ZoneDeleteResult{
-				Status: "Succeeded",
-				StatusCode: "OK",
-		}
-		close(err)
-		close(result)
-	}()
+	if len(a.recordSets[zoneName]) > 0 {
+		return result, fmt.Errorf("Error deleting hosted DNS zone: %s has resource records", zoneName) 	
+	}
 	
 	if z, ok := a.zones[zoneName]; ok {
 		if( ifMatch == "" || *z.Etag == ifMatch  ) {
 			delete( a.zones, zoneName)			
 		}
 	}
-	return result, err
+	return result, nil
 }
