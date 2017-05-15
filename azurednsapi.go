@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 /* internal implements a stub for the AWS dns API, used primarily for unit testing purposes */
-package stubs
+package azuredns
 
 import (
 	"fmt"

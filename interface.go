@@ -25,16 +25,15 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"github.com/Azure/go-autorest/autorest/to"
-		azurednstesting "github.com/xtophs/k8s-fed-azuredns/stubs"
 )
 
 // Compile time check for interface adherence
 var _ dnsprovider.Interface = Interface{}
 
-var _ azurednstesting.AzureDNSAPI = &Clients{}
+var _ AzureDNSAPI = &Clients{}
 
 type Interface struct {
-	service *azurednstesting.AzureDNSAPI
+	service *AzureDNSAPI
 }
 
 
@@ -84,7 +83,7 @@ func( c *Clients ) DeleteZone( zoneName string, ifMatch string, cancel <-chan st
 
 // New builds an Interface, with a specified azurednsAPI implementation.
 // This is useful for testing purposes, but also if we want an instance with with custom AWS options.
-func New(service *azurednstesting.AzureDNSAPI) *Interface {
+func New(service *AzureDNSAPI) *Interface {
 	return &Interface{service}
 }
 
@@ -128,7 +127,7 @@ func NewClients(config Config) *Interface {
 
 	clients.rc.Authorizer = spt
 
-	var api azurednstesting.AzureDNSAPI = clients
+	var api AzureDNSAPI = clients
 	
 	return &Interface{&api}
 }

@@ -27,8 +27,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
-	azurednstesting "github.com/xtophs/k8s-fed-azuredns/stubs"
-	//azurednstesting "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/azure/azuredns/stubs"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/tests"
 
@@ -41,10 +39,10 @@ func newTestInterface() (dnsprovider.Interface, error) {
 	}
 
 	// Use this to test the real cloud service.
-	i, err := newAzureDNSProvider()
+	/i, err := newAzureDNSProvider()
 
 	// Use this to stub out the entire cloud service
-	//i, err :=  newFakeInterface() 
+	i, err :=  newFakeInterface() 
 	return i, err
 }
 
@@ -60,8 +58,8 @@ func newAzureDNSProvider() (dnsprovider.Interface, error) {
 
 func newFakeInterface() (dnsprovider.Interface, error) {
 	zoneName := "example.com"
-	api := azurednstesting.NewAzureDNSAPIStub()
-	var svc azurednstesting.AzureDNSAPI
+	api := NewAzureDNSAPIStub()
+	var svc AzureDNSAPI
 	svc = api
 
 	iface := New(&svc)
