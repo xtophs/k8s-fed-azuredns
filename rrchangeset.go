@@ -154,9 +154,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 			glog.V(8).Infof("Azure DNS Removal:\n%s", sb.String())
 		}
 
-		_, err := svc.GetRecordSetsClient().Delete(
-			svc.GetResourceGroupName(),
-			*zoneName, *rrset.Name, dns.RecordType(*recType), "")
+		_, err := svc.RecordSetsDelete( *zoneName, *rrset.Name, dns.RecordType(*recType), "")
 
 		if err != nil {
 			glog.V(8).Infof("Could not delete DNS %s", *rrset.Name)
@@ -175,9 +173,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 			glog.V(8).Infof("Azure DNS Upsert:\n%s", sb.String())
 		}
 
-		_, err := svc.GetRecordSetsClient().CreateOrUpdate(
-			svc.GetResourceGroupName(),
-			*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
+		_, err := svc.RecordSetCreateOrUpdate(	*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 
 		if err != nil {
 			glog.V(0).Infof("Could not upsert DNS %s", upsert.Name)
@@ -195,8 +191,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 			glog.V(8).Infof("Azure DNS Addition:\n%s", sb.String())
 		}
 
-		_, err := svc.GetRecordSetsClient().CreateOrUpdate(svc.GetResourceGroupName(),
-			*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
+		_, err := svc.RecordSetCreateOrUpdate(*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 		if err != nil {
 			glog.V(0).Infof("Coul not add DNS %s", addition.Name)
 			return err

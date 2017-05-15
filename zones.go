@@ -33,8 +33,6 @@ type Zones struct {
 func (zones Zones) List() ([]dnsprovider.Zone, error) {
 	svc := *zones.interface_.service
 
-	glog.V(5).Infof("Requesting zones")
-	// request all 100 zones. 100 is the current limit per subscription
 	azZoneList, err := svc.ListZones()
 	var zoneList []dnsprovider.Zone
 
@@ -58,10 +56,7 @@ func (zones Zones) Add(zone dnsprovider.Zone) (dnsprovider.Zone, error) {
 		Name:     to.StringPtr(zoneName),
 	}
 
-	glog.V(4).Infof("Creating Zone: %s, in resource group: %s\n", zoneName, svc.GetResourceGroupName())
-	_, err := svc.CreateOrUpdateZone(
-		svc.GetResourceGroupName(),
-		zoneName, *zoneParam, "", "")
+	_, err := svc.CreateOrUpdateZone(zoneName, *zoneParam, "", "")
 
 	if err != nil {
 		glog.Errorf("Error creating Azure DNS zone: %s: %s", zoneName, err.Error)
@@ -76,9 +71,7 @@ func (zones Zones) Add(zone dnsprovider.Zone) (dnsprovider.Zone, error) {
 func (zones Zones) Remove(zone dnsprovider.Zone) error {
 	svc := *zones.interface_.service
 
-	glog.V(4).Infof("Removing Azure DNS zone ID: %s, Name: %s rg: %s\n", zone.ID(), zone.Name(), svc.GetResourceGroupName())
-	_, err := svc.DeleteZone(svc.GetResourceGroupName(),
-		zone.Name(), "", nil)
+	_, err := svc.DeleteZone(zone.Name(), "", nil)
 	errval := <- err 
 	if errval != nil {
 		// TODO: Fix go azure sdk version

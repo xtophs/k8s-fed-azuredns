@@ -38,11 +38,12 @@ type Interface struct {
 }
 
 type AzureDNSAPI interface {
-	GetRecordSetsClient() *dns.RecordSetsClient
-	GetResourceGroupName() string
 	ListZones( )( dns.ZoneListResult, error )
-	CreateOrUpdateZone( rgName string, zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (dns.Zone, error)
-	DeleteZone( rgName string, zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error)
+	CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (dns.Zone, error)
+	DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error)
+	ListResourceRecordSetsByZone( zoneName string ) (dns.RecordSetListResult, error)
+	RecordSetCreateOrUpdate(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error)
+	RecordSetsDelete(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error)
 }
 
 type Clients struct {
@@ -61,17 +62,41 @@ type Clients struct {
 // 		secret,
 // 	}
 // }
+func( c *Clients) RecordSetsDelete(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error){
+	return c.rc.Delete(c.conf.Global.ResourceGroup, zoneName, relativeRecordSetName, recordType, ifMatch) 
+}
+
+func( c *Clients) RecordSetCreateOrUpdate(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
+	return c.rc.CreateOrUpdate(c.conf.Global.ResourceGroup, 
+		zoneName, relativeRecordSetName , recordType, parameters, ifMatch, ifNoneMatch) 
+
+}
+
+func( c *Clients) ListResourceRecordSetsByZone(zoneName string )(dns.RecordSetListResult, error)  {
+
+	// TODO: paging
+	glog.V(5).Infof("LISTING RecordSets for zone %s in rg %s\n", zoneName, c.conf.Global.ResourceGroup)
+
+	return c.rc.ListByDNSZone(	c.conf.Global.ResourceGroup,
+		zoneName,
+		to.Int32Ptr(100))
+}
 
 func( c *Clients ) ListZones() ( dns.ZoneListResult, error) {
+
+	glog.V(5).Infof("Requesting zones")
+	// request all 100 zones. 100 is the current limit per subscription
 	return c.zc.List( to.Int32Ptr(100))
 }
 
-func( c *Clients ) CreateOrUpdateZone(   rgName string, zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (  dns.Zone, error) {
-	return c.zc.CreateOrUpdate(rgName, zoneName, zone, ifMatch, ifNoneMatch )
+func( c *Clients ) CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (  dns.Zone, error) {
+	glog.V(4).Infof("Creating Zone: %s, in resource group: %s\n", zoneName, c.conf.Global.ResourceGroup)
+	return c.zc.CreateOrUpdate(c.conf.Global.ResourceGroup, zoneName, zone, ifMatch, ifNoneMatch )
 }
 
-func( c *Clients ) DeleteZone( rgName string, zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error){
-	return c.zc.Delete( rgName, zoneName, ifMatch,  cancel)
+func( c *Clients ) DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error){
+	glog.V(4).Infof("Removing Azure DNS zone Name: %s rg: %s\n", zoneName, c.conf.Global.ResourceGroup)
+	return c.zc.Delete( c.conf.Global.ResourceGroup, zoneName, ifMatch,  cancel)
 }
 
 func (a *Clients) GetRecordSetsClient() *dns.RecordSetsClient {

@@ -17,8 +17,7 @@ limitations under the License.
 package azuredns
 
 import (
-	"github.com/Azure/azure-sdk-for-go/arm/dns"
-	"github.com/Azure/go-autorest/autorest/to"
+	"github.com/Azure/azure-sdk-for-go/arm/dns"	
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 	"github.com/golang/glog"
@@ -34,18 +33,13 @@ type ResourceRecordSets struct {
 func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error) {
 
 	svc := *rrsets.zone.zones.interface_.service
-	glog.V(5).Infof("LISTING RecordSets for zone %s in rg %s\n", rrsets.zone.Name(), svc.GetResourceGroupName())
 
-	result, err := svc.GetRecordSetsClient().ListByDNSZone(
-		svc.GetResourceGroupName(),
-		rrsets.zone.Name(),
-		to.Int32Ptr(100))
+	result, err := svc.ListResourceRecordSetsByZone( rrsets.zone.Name() )
 
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: paging
 	var list []dnsprovider.ResourceRecordSet = make([]dnsprovider.ResourceRecordSet, len(*result.Value))
 
 	for i := range *result.Value {
