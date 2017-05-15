@@ -23,73 +23,66 @@ import (
 	"strings"
 	"testing"
 
-	//"github.com/Azure/azure-sdk-for-go/arm/dns"
-	//"github.com/Azure/go-autorest/autorest/to"
+	"github.com/Azure/azure-sdk-for-go/arm/dns"
+	"github.com/Azure/go-autorest/autorest/to"
 
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
+	azurednstesting "github.com/xtophs/k8s-fed-azuredns/stubs"
 	//azurednstesting "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/azure/azuredns/stubs"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/tests"
-	"github.com/golang/glog"
+	//"github.com/golang/glog"
 )
 
 func newTestInterface() (dnsprovider.Interface, error) {
-	// Use this to test the real cloud service.
-	//return newAzureDNSProvider()
-
 	p := dnsprovider.RegisteredDnsProviders()
 	for _, s := range p {
-		glog.Infof("provider %s\n", s)
-		fmt.Printf("provider: %s\n", s)
+		fmt.Printf("Found registered provider %s\n", s)
 	}
+
+	// Use this to test the real cloud service.
+	//i, err := newAzureDNSProvider()
+
+	// Use this to stub out the entire cloud service
+	i, err :=  newFakeInterface() 
+	return i, err
+}
+
+func newAzureDNSProvider() (dnsprovider.Interface, error) {
 	i, err := dnsprovider.GetDnsProvider(ProviderName, strings.NewReader("\n[Global]\nsubscription-id = ffa90503-6fe8-4ab5-9bf1-059f81a6d8bb\ntenant-id = 66841164-1e0e-4ffc-a0d2-ce36f95ec41d\nclient-id = eebec4ca-c175-45dc-b763-943607ce4838\nsecret = 9f4ba4e0-be35-4821-9aa6-4caadfaba4fa\nresourceGroup = delete-dns"))
-//	i, err := dnsprovider.GetDnsProvider(ProviderName, strings.NewReader("[Global]\nsubscription = ffa90503"))
-//	i, err := dnsprovider.GetDnsProvider(ProviderName, strings.NewReader("\n[global]\nproject-id = federation0-cluster00"))
 	if i == nil || err != nil {
 		fmt.Printf("DNS provider %s not registered", ProviderName)
 		os.Exit(1)
 	}
-	return i, err
-	//return newFakeInterface() // Use this to stub out the entire cloud service
+
+	return i, nil
 }
 
-// func newAzureDNSProvider() (dnsprovider.Interface, error) {
-// 	azConfig := NewAzureDNSConfig("ffa90503-6fe8-4ab5-9bf1-059f81a6d8bb",
-// 		"delete-dns",
-// 		"66841164-1e0e-4ffc-a0d2-ce36f95ec41d",
-// 		"eebec4ca-c175-45dc-b763-943607ce4838",
-// 		"9f4ba4e0-be35-4821-9aa6-4caadfaba4fa")
-// 	return NewClients(*azConfig), nil
-// }
+func newFakeInterface() (dnsprovider.Interface, error) {
+	zoneName := "example.com"
+	api := azurednstesting.NewAzureDNSAPIStub()
+	var svc azurednstesting.AzureDNSAPI
+	svc = api
 
-// func newFakeInterface() (dnsprovider.Interface, error) {
-// 	var service *azurednstesting.AzureDNSAPIStub
-// 	service = azurednstesting.NewAzureDNSAPIStub()
+	iface := New(&svc)
 
-// 	var api AzureDNSAPI = service
-// 	api.GetResourceGroupName()
+	// Add a fake zone to test against.
+	var params dns.Zone = dns.Zone{
+		Name:     &zoneName,
+		Location: to.StringPtr("global"),
+	}
 
-// 	iface := New(&api)
+	if iface.service == nil {
+		fmt.Printf("Service interface should not be null")
+		os.Exit(1)
+	}
 
-// 	zoneName := "example.com"
-// 	// Add a fake zone to test against.
-// 	var params dns.Zone = dns.Zone{
-// 		Name:     &zoneName,
-// 		Location: to.StringPtr("global"),
-// 	}
-
-// 	if iface.service == nil {
-// 		fmt.Printf("Service interface should not be null")
-// 		os.Exit(1)
-// 	}
-// 	svc := *iface.service
-
-// 	_, err := svc.GetZonesClient().CreateOrUpdate("fakeRgName", zoneName, params, "", "")
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return iface, nil
-// }
+	_, err := svc.CreateOrUpdateZone( zoneName, params, "", "")
+	if err != nil {
+		return nil, err
+	}
+	return iface, nil
+}
 
 var interface_ dnsprovider.Interface
 
@@ -209,7 +202,7 @@ func TestZoneAddSuccess(t *testing.T) {
 		t.Errorf("Failed to create new managed DNS zone %s: %v", testZoneName, err)
 	}
 	defer func(zone dnsprovider.Zone) {
-		if zone != nil {
+		if zone != nil {			
 			if err := z.Remove(zone); err != nil {
 				t.Errorf("Failed to delete zone %v: %v", zone, err)
 			}

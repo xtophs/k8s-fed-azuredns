@@ -26,25 +26,19 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"github.com/Azure/go-autorest/autorest/to"
+		azurednstesting "github.com/xtophs/k8s-fed-azuredns/stubs"
 )
 
 // Compile time check for interface adherence
 var _ dnsprovider.Interface = Interface{}
 
-var _ AzureDNSAPI = &Clients{}
+var _ azurednstesting.AzureDNSAPI = &Clients{}
 
 type Interface struct {
-	service *AzureDNSAPI
+	service *azurednstesting.AzureDNSAPI
 }
 
-type AzureDNSAPI interface {
-	ListZones( )( dns.ZoneListResult, error )
-	CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (dns.Zone, error)
-	DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error)
-	ListResourceRecordSetsByZone( zoneName string ) (dns.RecordSetListResult, error)
-	RecordSetCreateOrUpdate(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error)
-	RecordSetsDelete(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error)
-}
+
 
 type Clients struct {
 	rc      dns.RecordSetsClient
@@ -53,23 +47,13 @@ type Clients struct {
 	confMap map[string]string
 }
 
-// func NewAzureDNSConfig(subId string, resGroup string, tenantId string, clientId string, secret string) *azureDnsConfig {
-// 	return &azureDnsConfig{
-// 		subId,
-// 		resGroup,
-// 		tenantId,
-// 		clientId,
-// 		secret,
-// 	}
-// }
-func( c *Clients) RecordSetsDelete(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error){
+func( c *Clients) DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error){
 	return c.rc.Delete(c.conf.Global.ResourceGroup, zoneName, relativeRecordSetName, recordType, ifMatch) 
 }
 
-func( c *Clients) RecordSetCreateOrUpdate(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
+func( c *Clients) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
 	return c.rc.CreateOrUpdate(c.conf.Global.ResourceGroup, 
 		zoneName, relativeRecordSetName , recordType, parameters, ifMatch, ifNoneMatch) 
-
 }
 
 func( c *Clients) ListResourceRecordSetsByZone(zoneName string )(dns.RecordSetListResult, error)  {
@@ -99,27 +83,9 @@ func( c *Clients ) DeleteZone( zoneName string, ifMatch string, cancel <-chan st
 	return c.zc.Delete( c.conf.Global.ResourceGroup, zoneName, ifMatch,  cancel)
 }
 
-func (a *Clients) GetRecordSetsClient() *dns.RecordSetsClient {
-	rc := dns.NewRecordSetsClient(a.conf.Global.SubscriptionID)
-	spt, err := helpers.NewServicePrincipalTokenFromCredentials(a.confMap, azure.PublicCloud.ResourceManagerEndpoint)
-	if err != nil {
-		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
-		return nil
-	}
-
-	rc.Authorizer = autorest.NewBearerAuthorizer(spt)
-	return &rc
-}
-
-func (a *Clients) GetResourceGroupName() string {
-	return a.conf.Global.ResourceGroup
-}
-
 // New builds an Interface, with a specified azurednsAPI implementation.
 // This is useful for testing purposes, but also if we want an instance with with custom AWS options.
-func New(service *AzureDNSAPI) *Interface {
-
-
+func New(service *azurednstesting.AzureDNSAPI) *Interface {
 	return &Interface{service}
 }
 
@@ -163,7 +129,7 @@ func NewClients(config Config) *Interface {
 
 	clients.rc.Authorizer = autorest.NewBearerAuthorizer(spt)
 
-	var api AzureDNSAPI = clients
+	var api azurednstesting.AzureDNSAPI = clients
 	
 	return &Interface{&api}
 }

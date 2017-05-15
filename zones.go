@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
+
 )
 
 // Compile time check for interface adherence
@@ -39,6 +40,8 @@ func (zones Zones) List() ([]dnsprovider.Zone, error) {
 	if err == nil {
 		glog.V(5).Infof("got %i zones\n", len(*azZoneList.Value))
 		for _, zone := range *azZoneList.Value {
+			glog.V(5).Infof("got %v\n", zone)
+
 			zoneList = append( zoneList, &Zone{&zone, &zones}) 
 		}
 	} else {
@@ -70,8 +73,8 @@ func (zones Zones) Add(zone dnsprovider.Zone) (dnsprovider.Zone, error) {
 
 func (zones Zones) Remove(zone dnsprovider.Zone) error {
 	svc := *zones.interface_.service
-
 	_, err := svc.DeleteZone(zone.Name(), "", nil)
+
 	errval := <- err 
 	if errval != nil {
 		// TODO: Fix go azure sdk version

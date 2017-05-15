@@ -19,142 +19,171 @@ package stubs
 
 import (
 	"fmt"
-
+	"strings"
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
-	//	"github.com/Azure/azure-sdk-for-go/arm/examples/helpers"
+	"github.com/Azure/go-autorest/autorest"
 )
 
 // Compile time check for interface conformance
-var _ AzureDNSAPI = &AzureDNSAPIStub{}
+var _ AzureDNSAPI = Api{}
 
-/* dnsAPI is the subset of the AWS dns API that we actually use.  Add methods as required. Signatures must match exactly. */
 type AzureDNSAPI interface {
-	// 	ListResourceRecordSetsPages(input *dns.ListResourceRecordSetsInput, fn func(p *dns.ListResourceRecordSetsOutput, lastPage bool) (shouldContinue bool)) error
-	// 	ChangeResourceRecordSets(*dns.ChangeResourceRecordSetsInput) (*dns.ChangeResourceRecordSetsOutput, error)
-	// 	ListHostedZonesPages(input *dns.ListHostedZonesInput, fn func(p *dns.ListHostedZonesOutput, lastPage bool) (shouldContinue bool)) error
-	// 	CreateHostedZone(*dns.CreateHostedZoneInput) (*dns.CreateHostedZoneOutput, error)
-	// 	DeleteHostedZone(*dns.DeleteHostedZoneInput) (*dns.DeleteHostedZoneOutput, error)
+	ListZones( )( dns.ZoneListResult, error )
+	CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (dns.Zone, error)
+	DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error)
+	ListResourceRecordSetsByZone( zoneName string ) (dns.RecordSetListResult, error)
+	CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error)
+	DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error)
 }
 
 // AzureDNSAPIStub is a minimal implementation of dnsAPI, used primarily for unit testing.
 // See http://http://docs.aws.amazon.com/sdk-for-go/api/service/dns.html for descriptions
 // of all of its methods.
-type AzureDNSAPIStub struct {
-	zc dns.ZonesClient
-	rc dns.RecordSetsClient
-	rg string
+type Api struct {
+	zones      map[string]*dns.Zone
+	recordSets map[string][]dns.RecordSet
 }
 
 // NewAzureDNSAPIStub returns an initialized AzureDNSAPIStub
-func NewAzureDNSAPIStub() *AzureDNSAPIStub {
-	//  TODO
-	return &AzureDNSAPIStub{
-	// zones:      make(map[string]*dns.Zone),
-	// recordSets: make(map[string]map[string][]*dns.RecordSet),
+func NewAzureDNSAPIStub() *Api {
+	api := &Api{
+	  zones:      make(map[string]*dns.Zone),
+	  recordSets: make(map[string][]dns.RecordSet),
 	}
+	//api.zones["test.com"] =  &dns.Zone{ ID: to.StringPtr("zoneID"), Name: to.StringPtr("test.com"), Type: to.StringPtr("ZoneTypes")}
+	return api
 }
 
-func (api *AzureDNSAPIStub) RecordSetCreateOrUpdate(resourceGroupName string, zoneName string, parameters dns.Zone, ifMatch string, ifNoneMatch string) (result dns.Zone, err error) {
-	// TODO
-	fmt.Printf("Testing ZonesClient CreateOrUpdate")
-	return dns.Zone{}, nil
+func( a Api) DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (autorest.Response, error){
+	result := autorest.Response{
+	}
+
+	key := zoneName
+
+ 	_, ok := a.recordSets[key]
+ 	if ok {
+		delete(a.recordSets, key)
+	} else {
+		// Deleting non-existant item. Some of the tests do that
+		return result, nil 
+	}
+				
+	return result, nil
 }
 
-func (a *AzureDNSAPIStub) ListZones() []dns.Zones {
-	fake := FakeZonesClient{}
-	c := dns.ZonesClient(fake)
-	return &c // *dns.ZonesClient(&FakeZonesClient{})
+func( a Api) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
+	var result = parameters
+	if _, ok := a.recordSets[zoneName]; ok {
+		found := -1
+
+		// we have a zone already ... this might be update
+		for i, record := range a.recordSets[zoneName] {
+			// check if this record already exists
+			if strings.Compare(*record.Type, string(recordType)) ==0 && strings.Compare(*record.Name, *parameters.Name) == 0  {
+				found = i
+				break
+			} 
+		} 
+		if found == -1  {
+			// zone exists ... record doesn't
+			a.recordSets[zoneName] = append(a.recordSets[zoneName], parameters)		
+		} else {
+			if ifNoneMatch == "*" {
+				// star parameter says no updates
+				return result, fmt.Errorf("parameters don't allow update")
+			}
+
+			// zone exists ... record exists
+			if *parameters.Etag != "" && a.recordSets[zoneName][found].Etag != parameters.Etag {
+				return result, fmt.Errorf("Etag doesn't allow update")
+			} 
+			// update record
+			a.recordSets[zoneName][found] = parameters
+			
+		}
+	} else {
+		// new zone
+		a.recordSets[zoneName] = make([]dns.RecordSet, 1)
+		a.recordSets[zoneName][0] = parameters
+		 return result, nil
+	}
+
+	return result, nil 
 }
 
-func (a *AzureDNSAPIStub) GetRecordSetsClient() *dns.RecordSetsClient {
-	fake := FakeRecordSetsClient{}
+func( a Api) ListResourceRecordSetsByZone(zoneName string )(dns.RecordSetListResult, error)  {
+	var arr []dns.RecordSet = make([]dns.RecordSet, 0)
+	result := dns.RecordSetListResult{}
+	result.Value = &arr
 
-	var c dns.RecordSetsClient
-	c = dns.RecordSetsClient(fake)
-
-	return &c
+	if len(a.recordSets) <= 0 {
+		result.Value = &[]dns.RecordSet{}
+	} else if _, ok := a.recordSets[zoneName]; !ok {
+		result.Value = &[]dns.RecordSet{}
+	} else {
+		// value is pointer to []RecordSet 
+		rrset := a.recordSets[zoneName] 
+		for _, r := range rrset {
+			
+			*result.Value = append(*result.Value, dns.RecordSet{ Name: r.Name, ID: r.ID, Type: r.Type, RecordSetProperties: r.RecordSetProperties})
+		}
+	}
+	return result, nil
 }
 
-func (a AzureDNSAPIStub) GetResourceGroupName() string {
-	return "fakeResourceGroup"
+func( a Api ) ListZones() ( dns.ZoneListResult, error) {
+	v := make ([]dns.Zone, len( a.zones ))
+	result := dns.ZoneListResult {
+		Value: &v,
+	}
+	for _, zone := range a.zones {
+		*result.Value = append(*result.Value, *zone)
+	}
+
+	return result, nil
 }
 
-// func (r *AzureDNSAPIStub) ListResourceRecordSetsPages(input *dns.ListResourceRecordSetsInput, fn func(p *dns.ListResourceRecordSetsOutput, lastPage bool) (shouldContinue bool)) error {
-// 	output := dns.ListResourceRecordSetsOutput{} // TODO: Support optional input args.
-// 	if len(r.recordSets) <= 0 {
-// 		output.ResourceRecordSets = []*dns.ResourceRecordSet{}
-// 	} else if _, ok := r.recordSets[*input.HostedZoneId]; !ok {
-// 		output.ResourceRecordSets = []*dns.ResourceRecordSet{}
-// 	} else {
-// 		for _, rrsets := range r.recordSets[*input.HostedZoneId] {
-// 			for _, rrset := range rrsets {
-// 				output.ResourceRecordSets = append(output.ResourceRecordSets, rrset)
-// 			}
-// 		}
-// 	}
-// 	lastPage := true
-// 	fn(&output, lastPage)
-// 	return nil
-// }
+func( a Api ) CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (  dns.Zone, error) {
+	id := zoneName
+	if _, ok := a.zones[id]; ok {
+		// zone already exists
+		if( ifNoneMatch == "*" ) {
+			// update not allowed because of *
+			return zone, fmt.Errorf("Error creating hosted DNS zone: %s already exists AND ", id)
+		}
+		a.zones[id] = &zone
+	} else {
+		// new zone
+		a.zones[id] = &zone
+		a.recordSets[id] = make([]dns.RecordSet, 0)		
+	}
+	
+	return zone, nil
+}
 
-// func (r *AzureDNSAPIStub) ChangeResourceRecordSets(input *dns.ChangeResourceRecordSetsInput) (*dns.ChangeResourceRecordSetsOutput, error) {
-// 	output := &dns.ChangeResourceRecordSetsOutput{}
-// 	recordSets, ok := r.recordSets[*input.HostedZoneId]
-// 	if !ok {
-// 		recordSets = make(map[string][]*dns.ResourceRecordSet)
-// 	}
+func( a Api ) DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error){
+	err := make( chan error, 1 )
+	result := make( chan dns.ZoneDeleteResult, 1 )
 
-// 	for _, change := range input.ChangeBatch.Changes {
-// 		key := *change.ResourceRecordSet.Name + "::" + *change.ResourceRecordSet.Type
-// 		switch *change.Action {
-// 		case dns.ChangeActionCreate:
-// 			if _, found := recordSets[key]; found {
-// 				return nil, fmt.Errorf("Attempt to create duplicate rrset %s", key) // TODO: Return AWS errors with codes etc
-// 			}
-// 			recordSets[key] = append(recordSets[key], change.ResourceRecordSet)
-// 		case dns.ChangeActionDelete:
-// 			if _, found := recordSets[key]; !found {
-// 				return nil, fmt.Errorf("Attempt to delete non-existent rrset %s", key) // TODO: Check other fields too
-// 			}
-// 			delete(recordSets, key)
-// 		case dns.ChangeActionUpsert:
-// 			// TODO - not used yet
-// 		}
-// 	}
-// 	r.recordSets[*input.HostedZoneId] = recordSets
-// 	return output, nil // TODO: We should ideally return status etc, but we don't' use that yet.
-// }
+	if len(a.recordSets[zoneName]) > 0 {
+		err <- fmt.Errorf("Error deleting hosted DNS zone: %s has resource records", zoneName)
 
-// func (r *AzureDNSAPIStub) ListHostedZonesPages(input *dns.ListHostedZonesInput, fn func(p *dns.ListHostedZonesOutput, lastPage bool) (shouldContinue bool)) error {
-// 	output := &dns.ListHostedZonesOutput{}
-// 	for _, zone := range r.zones {
-// 		output.HostedZones = append(output.HostedZones, zone)
-// 	}
-// 	lastPage := true
-// 	fn(output, lastPage)
-// 	return nil
-// }
+		return nil, err 	
+	}
 
-// func (r *AzureDNSAPIStub) CreateHostedZone(input *dns.CreateHostedZoneInput) (*dns.CreateHostedZoneOutput, error) {
-// 	name := aws.StringValue(input.Name)
-// 	id := "/hostedzone/" + name
-// 	if _, ok := r.zones[id]; ok {
-// 		return nil, fmt.Errorf("Error creating hosted DNS zone: %s already exists", id)
-// 	}
-// 	r.zones[id] = &dns.HostedZone{
-// 		Id:   aws.String(id),
-// 		Name: aws.String(name),
-// 	}
-// 	return &dns.CreateHostedZoneOutput{HostedZone: r.zones[id]}, nil
-// }
-
-// func (r *AzureDNSAPIStub) DeleteHostedZone(input *dns.DeleteHostedZoneInput) (*dns.DeleteHostedZoneOutput, error) {
-// 	if _, ok := r.zones[*input.Id]; !ok {
-// 		return nil, fmt.Errorf("Error deleting hosted DNS zone: %s does not exist", *input.Id)
-// 	}
-// 	if len(r.recordSets[*input.Id]) > 0 {
-// 		return nil, fmt.Errorf("Error deleting hosted DNS zone: %s has resource records", *input.Id)
-// 	}
-// 	delete(r.zones, *input.Id)
-// 	return &dns.DeleteHostedZoneOutput{}, nil
-// }
+	defer func() {
+		result <- dns.ZoneDeleteResult{
+				Status: "Succeeded",
+				StatusCode: "OK",
+		}
+		close(err)
+		close(result)
+	}()
+	
+	if z, ok := a.zones[zoneName]; ok {
+		if( ifMatch == "" || *z.Etag == ifMatch  ) {
+			delete( a.zones, zoneName)			
+		}
+	}
+	return result, err
+}

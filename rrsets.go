@@ -43,9 +43,15 @@ func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error)
 	var list []dnsprovider.ResourceRecordSet = make([]dnsprovider.ResourceRecordSet, len(*result.Value))
 
 	for i := range *result.Value {
+		// value is pointer to []RecordSet 
 		var r []dns.RecordSet = *result.Value
-		glog.V(5).Infof("recordset data: %s, %i\n", *r[i].Name, *r[i].TTL)
-		list[i] = &ResourceRecordSet{&(r[i]), &rrsets}
+		rs := r[i]
+		if( &rs != nil ) {
+			glog.V(5).Infof("recordset data: %v\n", rs)
+			list[i] = &ResourceRecordSet{&(r[i]), &rrsets}
+		} else { 
+			glog.Fatalf("Recordset was nil\n")
+		}
 	}
 
 	return list, err
