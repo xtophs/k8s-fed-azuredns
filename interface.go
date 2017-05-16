@@ -61,20 +61,22 @@ func( c *Clients) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetNam
 func( c *Clients) ListResourceRecordSetsByZone(zoneName string )(dns.RecordSetListResult, error)  {
 	glog.V(5).Infof("azuredns: Listing RecordSets for zone %s in rg %s\n", zoneName, c.conf.Global.ResourceGroup)
 
-	//var records []dns.RecordSet = make([]dns.RecordSet, 0)
+	var records []dns.RecordSet = make([]dns.RecordSet, 0)
 
 	// TODO: paging
 	result, err := c.rc.ListByDNSZone(	c.conf.Global.ResourceGroup,
 		zoneName,
 		to.Int32Ptr(100))
 
-	// if *result.NextLink != "" {
-	// 	for _, r := range *result.Value {
-	// 		records = append(records, r)
-	// 	}
-	// 	*result.Value = records 
-	// }
-	
+	if result.NextLink != nil {
+		if *result.NextLink != "" {
+			for _, r := range *result.Value {
+				records = append(records, r)
+			}
+			*result.Value = records 
+		}
+	}
+
 	return result, err
 }
 

@@ -22,13 +22,14 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
 	"github.com/Azure/go-autorest/autorest/to"
 
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
-	"k8s.io/kubernetes/federation/pkg/dnsprovider/tests"
+	//"k8s.io/kubernetes/federation/pkg/dnsprovider/tests"
 
 )
 
@@ -172,152 +173,171 @@ func addRrsetOrFail(t *testing.T, rrsets dnsprovider.ResourceRecordSets, rrset d
 }
 
 /* TestZonesList verifies that listing of zones succeeds */
-func TestZonesList(t *testing.T) {
-	firstZone(t)
-}
+// func TestZonesList(t *testing.T) {
+// 	firstZone(t)
+// }
 
-/* TestZonesID verifies that the id of the zone is returned with the prefix removed */
-func TestZonesID(t *testing.T) {
-	zone := firstZone(t)
+// /* TestZonesID verifies that the id of the zone is returned with the prefix removed */
+// func TestZonesID(t *testing.T) {
+// 	zone := firstZone(t)
 
-	// Check /hostedzone/ prefix is removed
-	zoneID := zone.ID()
-	if zoneID != zone.Name() {
-		t.Fatalf("Unexpected zone id: %q", zoneID)
-	}
-}
+// 	// Check /hostedzone/ prefix is removed
+// 	zoneID := zone.ID()
+// 	if zoneID != zone.Name() {
+// 		t.Fatalf("Unexpected zone id: %q", zoneID)
+// 	}
+// }
 
-/* TestZoneAddSuccess verifies that addition of a valid managed DNS zone succeeds */
-func TestZoneAddSuccess(t *testing.T) {
-	testZoneName := "ubernetes.testing"
-	z := zones(t)
-	input, err := z.New(testZoneName)
-	if err != nil {
-		t.Errorf("Failed to allocate new zone object %s: %v", testZoneName, err)
-	}
-	zone, err := z.Add(input)
-	if err != nil {
-		t.Errorf("Failed to create new managed DNS zone %s: %v", testZoneName, err)
-	}
-	defer func(zone dnsprovider.Zone) {
-		if zone != nil {			
-			if err := z.Remove(zone); err != nil {
-				t.Errorf("Failed to delete zone %v: %v", zone, err)
-			}
-		}
-	}(zone)
-	t.Logf("Successfully added managed DNS zone: %v", zone)
-}
+// /* TestZoneAddSuccess verifies that addition of a valid managed DNS zone succeeds */
+// func TestZoneAddSuccess(t *testing.T) {
+// 	testZoneName := "ubernetes.testing"
+// 	z := zones(t)
+// 	input, err := z.New(testZoneName)
+// 	if err != nil {
+// 		t.Errorf("Failed to allocate new zone object %s: %v", testZoneName, err)
+// 	}
+// 	zone, err := z.Add(input)
+// 	if err != nil {
+// 		t.Errorf("Failed to create new managed DNS zone %s: %v", testZoneName, err)
+// 	}
+// 	defer func(zone dnsprovider.Zone) {
+// 		if zone != nil {			
+// 			if err := z.Remove(zone); err != nil {
+// 				t.Errorf("Failed to delete zone %v: %v", zone, err)
+// 			}
+// 		}
+// 	}(zone)
+// 	t.Logf("Successfully added managed DNS zone: %v", zone)
+// }
 
-/* TestResourceRecordSetsList verifies that listing of RRS's succeeds */
-func TestResourceRecordSetsList(t *testing.T) {
-	listRrsOrFail(t, rrs(t, firstZone(t)))
-}
+// /* TestResourceRecordSetsList verifies that listing of RRS's succeeds */
+// func TestResourceRecordSetsList(t *testing.T) {
+// 	listRrsOrFail(t, rrs(t, firstZone(t)))
+// }
 
-/* TestResourceRecordSetsAddSuccess verifies that addition of a valid RRS succeeds */
-func TestResourceRecordSetsAddSuccess(t *testing.T) {
-	zone := firstZone(t)
-	sets := rrs(t, zone)
-	set := getExampleRrs(zone)
-	addRrsetOrFail(t, sets, set)
-	defer sets.StartChangeset().Remove(set).Apply()
-	t.Logf("Successfully added resource record set: %v", set)
-}
+// /* TestResourceRecordSetsAddSuccess verifies that addition of a valid RRS succeeds */
+// func TestResourceRecordSetsAddSuccess(t *testing.T) {
+// 	zone := firstZone(t)
+// 	sets := rrs(t, zone)
+// 	set := getExampleRrs(zone)
+// 	addRrsetOrFail(t, sets, set)
+// 	defer sets.StartChangeset().Remove(set).Apply()
+// 	t.Logf("Successfully added resource record set: %v", set)
+// }
 
-/* TestResourceRecordSetsAdditionVisible verifies that added RRS is visible after addition */
-func TestResourceRecordSetsAdditionVisible(t *testing.T) {
-	zone := firstZone(t)
-	sets := rrs(t, zone)
-	rrset := getExampleRrs(zone)
-	addRrsetOrFail(t, sets, rrset)
-	t.Logf("Successfully added resource record set: %v", rrset)
-	found := false
-	for _, record := range listRrsOrFail(t, sets) {
-		if record.Name() == rrset.Name() {
-			found = true
-			break
-		}
-	}
-	defer sets.StartChangeset().Remove(rrset).Apply()
+// /* TestResourceRecordSetsAdditionVisible verifies that added RRS is visible after addition */
+// func TestResourceRecordSetsAdditionVisible(t *testing.T) {
+// 	zone := firstZone(t)
+// 	sets := rrs(t, zone)
+// 	rrset := getExampleRrs(zone)
+// 	addRrsetOrFail(t, sets, rrset)
+// 	t.Logf("Successfully added resource record set: %v", rrset)
+// 	found := false
+// 	for _, record := range listRrsOrFail(t, sets) {
+// 		if record.Name() == rrset.Name() {
+// 			found = true
+// 			break
+// 		}
+// 	}
+// 	defer sets.StartChangeset().Remove(rrset).Apply()
 
-	if !found {
-		t.Errorf("Failed to find added resource record set %s", rrset.Name())
-	}
-}
+// 	if !found {
+// 		t.Errorf("Failed to find added resource record set %s", rrset.Name())
+// 	}
+// }
 
-/* TestResourceRecordSetsAddDuplicateFail verifies that addition of a duplicate RRS fails */
-func TestResourceRecordSetsAddDuplicateFail(t *testing.T) {
-	zone := firstZone(t)
-	sets := rrs(t, zone)
-	rrset := getExampleRrs(zone)
-	addRrsetOrFail(t, sets, rrset)
-	defer sets.StartChangeset().Remove(rrset).Apply()
-	t.Logf("Successfully added resource record set: %v", rrset)
-	// Try to add it again, and verify that the call fails.
-	err := sets.StartChangeset().Add(rrset).Apply()
-	if err == nil {
-		defer sets.StartChangeset().Remove(rrset).Apply()
-		t.Errorf("Should have failed to add duplicate resource record %v, but succeeded instead.", rrset)
-	} else {
-		t.Logf("Correctly failed to add duplicate resource record %v: %v", rrset, err)
-	}
-}
+// /* TestResourceRecordSetsAddDuplicateFail verifies that addition of a duplicate RRS fails */
+// func TestResourceRecordSetsAddDuplicateFail(t *testing.T) {
+// 	zone := firstZone(t)
+// 	sets := rrs(t, zone)
+// 	rrset := getExampleRrs(zone)
+// 	addRrsetOrFail(t, sets, rrset)
+// 	defer sets.StartChangeset().Remove(rrset).Apply()
+// 	t.Logf("Successfully added resource record set: %v", rrset)
+// 	// Try to add it again, and verify that the call fails.
+// 	err := sets.StartChangeset().Add(rrset).Apply()
+// 	if err == nil {
+// 		defer sets.StartChangeset().Remove(rrset).Apply()
+// 		t.Errorf("Should have failed to add duplicate resource record %v, but succeeded instead.", rrset)
+// 	} else {
+// 		t.Logf("Correctly failed to add duplicate resource record %v: %v", rrset, err)
+// 	}
+// }
 
-/* TestResourceRecordSetsRemove verifies that the removal of an existing RRS succeeds */
-func TestResourceRecordSetsRemove(t *testing.T) {
-	zone := firstZone(t)
-	sets := rrs(t, zone)
-	rrset := getExampleRrs(zone)
-	addRrsetOrFail(t, sets, rrset)
-	err := sets.StartChangeset().Remove(rrset).Apply()
-	if err != nil {
-		// Try again to clean up.
-		defer sets.StartChangeset().Remove(rrset).Apply()
-		t.Errorf("Failed to remove resource record set %v after adding", rrset)
-	} else {
-		t.Logf("Successfully removed resource set %v after adding", rrset)
-	}
-}
+// /* TestResourceRecordSetsRemove verifies that the removal of an existing RRS succeeds */
+// func TestResourceRecordSetsRemove(t *testing.T) {
+// 	zone := firstZone(t)
+// 	sets := rrs(t, zone)
+// 	rrset := getExampleRrs(zone)
+// 	addRrsetOrFail(t, sets, rrset)
+// 	err := sets.StartChangeset().Remove(rrset).Apply()
+// 	if err != nil {
+// 		// Try again to clean up.
+// 		defer sets.StartChangeset().Remove(rrset).Apply()
+// 		t.Errorf("Failed to remove resource record set %v after adding", rrset)
+// 	} else {
+// 		t.Logf("Successfully removed resource set %v after adding", rrset)
+// 	}
+// }
 
-/* TestResourceRecordSetsRemoveGone verifies that a removed RRS no longer exists */
-func TestResourceRecordSetsRemoveGone(t *testing.T) {
-	zone := firstZone(t)
-	sets := rrs(t, zone)
-	rrset := getExampleRrs(zone)
-	addRrsetOrFail(t, sets, rrset)
-	err := sets.StartChangeset().Remove(rrset).Apply()
-	if err != nil {
-		// Try again to clean up.
-		defer sets.StartChangeset().Remove(rrset).Apply()
-		t.Errorf("Failed to remove resource record set %v after adding", rrset)
-	} else {
-		t.Logf("Successfully removed resource set %v after adding", rrset)
-	}
-	// Check that it's gone
-	list := listRrsOrFail(t, sets)
-	found := false
-	for _, set := range list {
-		if set.Name() == rrset.Name() {
-			found = true
-			break
-		}
-	}
-	if found {
-		t.Errorf("Deleted resource record set %v is still present", rrset)
-	}
-}
+// /* TestResourceRecordSetsRemoveGone verifies that a removed RRS no longer exists */
+// func TestResourceRecordSetsRemoveGone(t *testing.T) {
+// 	zone := firstZone(t)
+// 	sets := rrs(t, zone)
+// 	rrset := getExampleRrs(zone)
+// 	addRrsetOrFail(t, sets, rrset)
+// 	err := sets.StartChangeset().Remove(rrset).Apply()
+// 	if err != nil {
+// 		Try again to clean up.
+// 		defer sets.StartChangeset().Remove(rrset).Apply()
+// 		t.Errorf("Failed to remove resource record set %v after adding", rrset)
+// 	} else {
+// 		t.Logf("Successfully removed resource set %v after adding", rrset)
+// 	}
+// 	Check that it's gone
+// 	list := listRrsOrFail(t, sets)
+// 	found := false
+// 	for _, set := range list {
+// 		if set.Name() == rrset.Name() {
+// 			found = true
+// 			break
+// 		}
+// 	}
+// 	if found {
+// 		t.Errorf("Deleted resource record set %v is still present", rrset)
+// 	}
+// }
 
-func testResourceRecordSetPaging(t * testing.T){
+func TestResourceRecordSetPaging(t * testing.T){
 	// TODO
 	zone := firstZone(t)
 	sets := rrs(t, zone)
-	changes := sets.StartChangeset()
+	addchanges := sets.StartChangeset()
+	deletechanges := sets.StartChangeset()
 	rrsets, _ := zone.ResourceRecordSets()
 	for i:=0; i < 50; i++ {
-		r := rrsets.New("www11."+zone.Name(), []string{"10.10.10." + string(i), "169.20.20." + string(i)}, 180, rrstype.A)
-		changes.Add(r)
+		s := strconv.Itoa(i)
+		r := rrsets.New("www12"+s+"."+zone.Name(), []string{"10.10.10." + s, "169.20.20." + s}, 180, rrstype.A)
+		addchanges.Add(r)
+		deletechanges.Add(r)
 	}
-	err := changes.Apply()
+	err := addchanges.Apply()
+	if err != nil {
+		t.Fatalf("Failed to add %i recordsets: %v", 50, err)
+	}
+
+	rrset, err := rrsets.List()
+	if err != nil {
+		t.Fatalf("Failed to list recordsets: %v", err)
+	} else {
+		if len(rrset) < 50 {
+			t.Fatalf("Record set length=%d, expected >=0", len(rrset))
+		} else {
+			t.Logf("Got %d recordsets: %v", len(rrset), rrset)
+		}
+	}
+
+	err = deletechanges.Apply()
 	if err != nil {
 		t.Fatalf("Failed to add %i recordsets: %v", 50, err)
 	}
@@ -326,20 +346,20 @@ func testResourceRecordSetPaging(t * testing.T){
 }
 
 
-/* TestResourceRecordSetsReplace verifies that replacing an RRS works */
-func TestResourceRecordSetsReplace(t *testing.T) {
-	zone := firstZone(t)
-	tests.CommonTestResourceRecordSetsReplace(t, zone)
-}
+// /* TestResourceRecordSetsReplace verifies that replacing an RRS works */
+// func TestResourceRecordSetsReplace(t *testing.T) {
+// 	zone := firstZone(t)
+// 	tests.CommonTestResourceRecordSetsReplace(t, zone)
+// }
 
-/* TestResourceRecordSetsReplaceAll verifies that we can remove an RRS and create one with a different name*/
-func TestResourceRecordSetsReplaceAll(t *testing.T) {
-	zone := firstZone(t)
-	tests.CommonTestResourceRecordSetsReplaceAll(t, zone)
-}
+// /* TestResourceRecordSetsReplaceAll verifies that we can remove an RRS and create one with a different name*/
+// func TestResourceRecordSetsReplaceAll(t *testing.T) {
+// 	zone := firstZone(t)
+// 	tests.CommonTestResourceRecordSetsReplaceAll(t, zone)
+// }
 
-/* TestResourceRecordSetsHonorsType verifies that we can add records of the same name but different types */
-func TestResourceRecordSetsDifferentTypes(t *testing.T) {
-	zone := firstZone(t)
-	tests.CommonTestResourceRecordSetsDifferentTypes(t, zone)
-}
+// /* TestResourceRecordSetsHonorsType verifies that we can add records of the same name but different types */
+// func TestResourceRecordSetsDifferentTypes(t *testing.T) {
+// 	zone := firstZone(t)
+// 	tests.CommonTestResourceRecordSetsDifferentTypes(t, zone)
+// }

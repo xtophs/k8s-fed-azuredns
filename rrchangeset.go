@@ -145,12 +145,12 @@ func (c *ResourceRecordChangeset) Apply() error {
 		var rrset = fromProviderRrset(removal)
 		recType := rrset.Type
 		// TODO Refactor
-		glog.V(8).Infof("azuredns: Delete:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
+		glog.V(1).Infof("azuredns: Delete:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
 
 		_, err := svc.DeleteRecordSets( *zoneName, *rrset.Name, dns.RecordType(*recType), "")
 
 		if err != nil {
-			glog.V(8).Infof("azuredns: Could not delete DNS %s", *rrset.Name)
+			glog.V(1).Infof("azuredns: Could not delete DNS %s", *rrset.Name)
 			return err
 		}
 
@@ -160,7 +160,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 	for _, upsert := range c.upserts {
 		var rrset = fromProviderRrset(upsert)
 		recType := rrset.Type
-		glog.V(8).Infof("azuredns: Upsert:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
+		glog.V(1).Infof("azuredns: Upsert:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
 
 		_, err := svc.CreateOrUpdateRecordSets(	*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 
@@ -174,7 +174,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 		var rrset = fromProviderRrset(addition)
 		recType := rrset.Type
 
-		glog.V(8).Infof("azuredns:  Addition:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
+		glog.V(1).Infof("azuredns:  Addition:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
 
 		_, err := svc.CreateOrUpdateRecordSets(*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 		if err != nil {
