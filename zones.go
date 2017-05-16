@@ -62,7 +62,7 @@ func (zones Zones) Add(zone dnsprovider.Zone) (dnsprovider.Zone, error) {
 	_, err := svc.CreateOrUpdateZone(zoneName, *zoneParam, "", "")
 
 	if err != nil {
-		glog.Errorf("Error creating Azure DNS zone: %s: %s", zoneName, err.Error)
+		glog.Errorf("Error creating Azure DNS zone: %s: %s", zoneName, err.Error())
 		return nil, err
 	}
 
