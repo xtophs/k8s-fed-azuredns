@@ -18,16 +18,17 @@ go_library(
         "rrsets.go",
         "zone.go",
         "zones.go",
+        "helpers.go",
     ],
     tags = ["automanaged"],
     deps = [
         "//federation/pkg/dnsprovider:go_default_library",
         "//federation/pkg/dnsprovider/providers/azure/azuredns/stubs:go_default_library",
         "//federation/pkg/dnsprovider/rrstype:go_default_library",
-//        "//vendor/github.com/Azure/azure-sdk-for-go:go_default_library",
+       "//vendor/github.com/Azure/azure-sdk-for-go:go_default_library",
         "github.com/Azure/azure-sdk-for-go:go_default_library",
         "github.com/Azure/go-autorest:go_default_library",
-//        "//vendor/github.com/golang/glog:go_default_library",
+         "//vendor/github.com/golang/glog:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/util/uuid:go_default_library",
     ],
 )
@@ -42,7 +43,7 @@ go_test(
         "//federation/pkg/dnsprovider/providers/azure/azuredns/stubs:go_default_library",
         "//federation/pkg/dnsprovider/rrstype:go_default_library",
         "//federation/pkg/dnsprovider/tests:go_default_library",
-//        "//vendor/github.com/Azure/azure-sdk-for-go:go_default_library",
+        "//vendor/github.com/Azure/azure-sdk-for-go:go_default_library",
         "github.com/Azure/azure-sdk-for-go:go_default_library",
     ],
 )

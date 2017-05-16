@@ -18,6 +18,7 @@ package azuredns
 
 import (
 	"github.com/Azure/azure-sdk-for-go/arm/dns"	
+	"github.com/Azure/go-autorest/autorest/to"	
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 	"github.com/golang/glog"
@@ -99,7 +100,7 @@ func (r ResourceRecordSets) New(name string, rrdatas []string, ttl int64, rrstyp
 	}
 
 	rrs.RecordSetProperties = rrDatasToRecordSetProperties(rrstypeStr, rrdatas)
-
+	rrs.TTL = to.Int64Ptr(ttl)
 	return ResourceRecordSet{
 		rrs,
 		&r,

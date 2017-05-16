@@ -39,10 +39,10 @@ func newTestInterface() (dnsprovider.Interface, error) {
 	}
 
 	// Use this to test the real cloud service.
-	/i, err := newAzureDNSProvider()
+	i, err := newAzureDNSProvider()
 
 	// Use this to stub out the entire cloud service
-	i, err :=  newFakeInterface() 
+	//i, err :=  newFakeInterface() 
 	return i, err
 }
 
@@ -306,6 +306,25 @@ func TestResourceRecordSetsRemoveGone(t *testing.T) {
 		t.Errorf("Deleted resource record set %v is still present", rrset)
 	}
 }
+
+func testResourceRecordSetPaging(t * testing.T){
+	// TODO
+	zone := firstZone(t)
+	sets := rrs(t, zone)
+	changes := sets.StartChangeset()
+	rrsets, _ := zone.ResourceRecordSets()
+	for i:=0; i < 50; i++ {
+		r := rrsets.New("www11."+zone.Name(), []string{"10.10.10." + string(i), "169.20.20." + string(i)}, 180, rrstype.A)
+		changes.Add(r)
+	}
+	err := changes.Apply()
+	if err != nil {
+		t.Fatalf("Failed to add %i recordsets: %v", 50, err)
+	}
+
+	return 
+}
+
 
 /* TestResourceRecordSetsReplace verifies that replacing an RRS works */
 func TestResourceRecordSetsReplace(t *testing.T) {

@@ -46,38 +46,51 @@ type Clients struct {
 }
 
 func( c *Clients) DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error){
+	glog.V(5).Infof("azuredns: Deleting RecordSet type %s for zone %s in rg %s\n", string(recordType), zoneName, c.conf.Global.ResourceGroup)
+
 	return c.rc.Delete(c.conf.Global.ResourceGroup, zoneName, relativeRecordSetName, recordType, ifMatch) 
 }
 
 func( c *Clients) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
+	glog.V(5).Infof("azuredns: CreateOrUpdate RecordSets type for zone %s in rg %s\n", string(recordType), zoneName, c.conf.Global.ResourceGroup)
+
 	return c.rc.CreateOrUpdate(c.conf.Global.ResourceGroup, 
 		zoneName, relativeRecordSetName , recordType, parameters, ifMatch, ifNoneMatch) 
 }
 
 func( c *Clients) ListResourceRecordSetsByZone(zoneName string )(dns.RecordSetListResult, error)  {
+	glog.V(5).Infof("azuredns: Listing RecordSets for zone %s in rg %s\n", zoneName, c.conf.Global.ResourceGroup)
+
+	//var records []dns.RecordSet = make([]dns.RecordSet, 0)
 
 	// TODO: paging
-	glog.V(5).Infof("LISTING RecordSets for zone %s in rg %s\n", zoneName, c.conf.Global.ResourceGroup)
-
-	return c.rc.ListByDNSZone(	c.conf.Global.ResourceGroup,
+	result, err := c.rc.ListByDNSZone(	c.conf.Global.ResourceGroup,
 		zoneName,
 		to.Int32Ptr(100))
+
+	// if *result.NextLink != "" {
+	// 	for _, r := range *result.Value {
+	// 		records = append(records, r)
+	// 	}
+	// 	*result.Value = records 
+	// }
+	
+	return result, err
 }
 
 func( c *Clients ) ListZones() ( dns.ZoneListResult, error) {
-
-	glog.V(5).Infof("Requesting zones")
+	glog.V(5).Infof("azuredns: Requesting DNS zones")
 	// request all 100 zones. 100 is the current limit per subscription
 	return c.zc.List( to.Int32Ptr(100))
 }
 
 func( c *Clients ) CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (  dns.Zone, error) {
-	glog.V(4).Infof("Creating Zone: %s, in resource group: %s\n", zoneName, c.conf.Global.ResourceGroup)
+	glog.V(4).Infof("azuredns: Creating Zone: %s, in resource group: %s\n", zoneName, c.conf.Global.ResourceGroup)
 	return c.zc.CreateOrUpdate(c.conf.Global.ResourceGroup, zoneName, zone, ifMatch, ifNoneMatch )
 }
 
 func( c *Clients ) DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (result autorest.Response, err error){
-	glog.V(4).Infof("Removing Azure DNS zone Name: %s rg: %s\n", zoneName, c.conf.Global.ResourceGroup)
+	glog.V(4).Infof("azuredns: Removing Azure DNS zone Name: %s rg: %s\n", zoneName, c.conf.Global.ResourceGroup)
 	return c.zc.Delete( c.conf.Global.ResourceGroup, zoneName, ifMatch,  cancel)
 }
 
@@ -104,7 +117,7 @@ func NewClients(config Config) *Interface {
 	var clients *Clients
 	clients = &Clients{}
 
-	glog.V(4).Infof("Created Azure DNS clients for subscription: %s", config.Global.SubscriptionID)
+	glog.V(4).Infof("azuredns: Created Azure DNS clients for subscription: %s", config.Global.SubscriptionID)
 
 	clients.conf = config
 	clients.confMap = c
@@ -112,7 +125,7 @@ func NewClients(config Config) *Interface {
 	clients.zc = dns.NewZonesClient(config.Global.SubscriptionID)
 	spt, err := NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
-		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
+		glog.Fatalf("azuredns: Error authenticating to Azure DNS: %v", err)
 		return nil
 	}
 
@@ -121,7 +134,7 @@ func NewClients(config Config) *Interface {
 	clients.rc = dns.NewRecordSetsClient(config.Global.SubscriptionID)
 	spt, err = NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
-		glog.Fatalf("Error authenticating to Azure DNS: %v", err)
+		glog.Fatalf("azuredns: Error authenticating to Azure DNS: %v", err)
 		return nil
 	}
 
@@ -144,7 +157,7 @@ func checkEnvVar(envVars *map[string]string) error {
 		}
 	}
 	if len(missingVars) > 0 {
-		return fmt.Errorf("Missing environment variables %v", missingVars)
+		return fmt.Errorf("azuredns: Missing environment variables %v", missingVars)
 	}
 	return nil
 }

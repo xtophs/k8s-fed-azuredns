@@ -17,10 +17,7 @@ limitations under the License.
 package azuredns
 
 import (
-	"bytes"
-	"fmt"
 	"strings"
-
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/glog"
@@ -148,16 +145,12 @@ func (c *ResourceRecordChangeset) Apply() error {
 		var rrset = fromProviderRrset(removal)
 		recType := rrset.Type
 		// TODO Refactor
-		if glog.V(8) {
-			var sb bytes.Buffer
-			sb.WriteString(fmt.Sprintf("\tRecordSet: %s Type: %s Zone Name %s\n", *rrset.Name, *recType, *zoneName))
-			glog.V(8).Infof("Azure DNS Removal:\n%s", sb.String())
-		}
+		glog.V(8).Infof("azuredns: Delete:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
 
 		_, err := svc.DeleteRecordSets( *zoneName, *rrset.Name, dns.RecordType(*recType), "")
 
 		if err != nil {
-			glog.V(8).Infof("Could not delete DNS %s", *rrset.Name)
+			glog.V(8).Infof("azuredns: Could not delete DNS %s", *rrset.Name)
 			return err
 		}
 
@@ -167,16 +160,12 @@ func (c *ResourceRecordChangeset) Apply() error {
 	for _, upsert := range c.upserts {
 		var rrset = fromProviderRrset(upsert)
 		recType := rrset.Type
-		if glog.V(8) {
-			var sb bytes.Buffer
-			sb.WriteString(fmt.Sprintf("\tRecordSet: %s Type: %s Zone Name %s\n", *rrset.Name, *recType, *zoneName))
-			glog.V(8).Infof("Azure DNS Upsert:\n%s", sb.String())
-		}
+		glog.V(8).Infof("azuredns: Upsert:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
 
 		_, err := svc.CreateOrUpdateRecordSets(	*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 
 		if err != nil {
-			glog.V(0).Infof("Could not upsert DNS %s", upsert.Name)
+			glog.V(0).Infof("azuredns: Could not upsert DNS %s", upsert.Name)
 			return err
 		}
 	}
@@ -185,15 +174,11 @@ func (c *ResourceRecordChangeset) Apply() error {
 		var rrset = fromProviderRrset(addition)
 		recType := rrset.Type
 
-		if glog.V(8) {
-			var sb bytes.Buffer
-			sb.WriteString(fmt.Sprintf("\tRecordSet: %s Type: %s Zone Name %s\n", *rrset.Name, *recType, *zoneName))
-			glog.V(8).Infof("Azure DNS Addition:\n%s", sb.String())
-		}
+		glog.V(8).Infof("azuredns:  Addition:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
 
 		_, err := svc.CreateOrUpdateRecordSets(*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 		if err != nil {
-			glog.V(0).Infof("Could not add DNS %s: %s", addition.Name(), err.Error())
+			glog.V(0).Infof("azuredns: Could not add DNS %s: %s", addition.Name(), err.Error())
 			return err
 		}
 	}
