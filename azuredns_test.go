@@ -22,7 +22,7 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"strconv"
+	//"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
 	"github.com/Azure/go-autorest/autorest/to"
@@ -121,12 +121,13 @@ func firstZone(t *testing.T) dnsprovider.Zone {
 	if err != nil {
 		t.Fatalf("Failed to list zones: %v", err)
 	} else {
-		t.Logf("Got zone list: %v\n", zones)
+		t.Logf("Got zone list: %v with %i zones\n", zones, len(zones))
 	}
 	if len(zones) < 1 {
 		t.Fatalf("Zone listing returned %d, expected >= %d", len(zones), 1)
 	} else {
 		t.Logf("Got at least 1 zone in list:%v\n", zones[0])
+		t.Logf("Got at least 1 zone in list:%s\n", zones[0].Name())
 	}
 	return zones[0]
 }
@@ -173,9 +174,9 @@ func addRrsetOrFail(t *testing.T, rrsets dnsprovider.ResourceRecordSets, rrset d
 }
 
 /* TestZonesList verifies that listing of zones succeeds */
-// func TestZonesList(t *testing.T) {
-// 	firstZone(t)
-// }
+func TestZonesList(t *testing.T) {
+	firstZone(t)
+}
 
 // /* TestZonesID verifies that the id of the zone is returned with the prefix removed */
 // func TestZonesID(t *testing.T) {
@@ -308,42 +309,42 @@ func addRrsetOrFail(t *testing.T, rrsets dnsprovider.ResourceRecordSets, rrset d
 // 	}
 // }
 
-func TestResourceRecordSetPaging(t * testing.T){
-	// TODO
-	zone := firstZone(t)
-	sets := rrs(t, zone)
-	addchanges := sets.StartChangeset()
-	deletechanges := sets.StartChangeset()
-	rrsets, _ := zone.ResourceRecordSets()
-	for i:=0; i < 50; i++ {
-		s := strconv.Itoa(i)
-		r := rrsets.New("www12"+s+"."+zone.Name(), []string{"10.10.10." + s, "169.20.20." + s}, 180, rrstype.A)
-		addchanges.Add(r)
-		deletechanges.Add(r)
-	}
-	err := addchanges.Apply()
-	if err != nil {
-		t.Fatalf("Failed to add %i recordsets: %v", 50, err)
-	}
+// func TestResourceRecordSetPaging(t * testing.T){
+// 	// TODO
+// 	zone := firstZone(t)
+// 	sets := rrs(t, zone)
+// 	addchanges := sets.StartChangeset()
+// 	deletechanges := sets.StartChangeset()
+// 	rrsets, _ := zone.ResourceRecordSets()
+// 	for i:=0; i < 50; i++ {
+// 		s := strconv.Itoa(i)
+// 		r := rrsets.New("www12"+s+"."+zone.Name(), []string{"10.10.10." + s, "169.20.20." + s}, 180, rrstype.A)
+// 		addchanges.Add(r)
+// 		deletechanges.Add(r)
+// 	}
+// 	err := addchanges.Apply()
+// 	if err != nil {
+// 		t.Fatalf("Failed to add %i recordsets: %v", 50, err)
+// 	}
 
-	rrset, err := rrsets.List()
-	if err != nil {
-		t.Fatalf("Failed to list recordsets: %v", err)
-	} else {
-		if len(rrset) < 50 {
-			t.Fatalf("Record set length=%d, expected >=0", len(rrset))
-		} else {
-			t.Logf("Got %d recordsets: %v", len(rrset), rrset)
-		}
-	}
+// 	rrset, err := rrsets.List()
+// 	if err != nil {
+// 		t.Fatalf("Failed to list recordsets: %v", err)
+// 	} else {
+// 		if len(rrset) < 50 {
+// 			t.Fatalf("Record set length=%d, expected >=0", len(rrset))
+// 		} else {
+// 			t.Logf("Got %d recordsets: %v", len(rrset), rrset)
+// 		}
+// 	}
 
-	err = deletechanges.Apply()
-	if err != nil {
-		t.Fatalf("Failed to add %i recordsets: %v", 50, err)
-	}
+// 	err = deletechanges.Apply()
+// 	if err != nil {
+// 		t.Fatalf("Failed to add %i recordsets: %v", 50, err)
+// 	}
 
-	return 
-}
+// 	return 
+// }
 
 
 // /* TestResourceRecordSetsReplace verifies that replacing an RRS works */

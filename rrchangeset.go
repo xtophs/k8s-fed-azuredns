@@ -58,22 +58,29 @@ func rrDatasToRecordSetProperties(rrsType string, rrDatas []string) *dns.RecordS
 	// kubernetes 1.6.2 only handles A, AAAA and CNAME
 	switch rrsType {
 	case "A":
-		recs := make([]dns.ARecord, len(rrDatas))
-
-		for i = range rrDatas {
-			recs[i] = dns.ARecord{
-				Ipv4Address: to.StringPtr(rrDatas[i]),
+		recs := make([]dns.ARecord, 1)
+			recs[0] = dns.ARecord{
+				Ipv4Address: to.StringPtr(rrDatas[0]),
 			}
-		}
+
+		// for i = range rrDatas {
+		// 	recs[i] = dns.ARecord{
+		// 		Ipv4Address: to.StringPtr(rrDatas[i]),
+		// 	}
+		// }
 		props.ARecords = &recs
 
 	case "AAAA":
-		recs := make([]dns.AaaaRecord, len(rrDatas))
-		for i = range rrDatas {
-			recs[i] = dns.AaaaRecord{
-				Ipv6Address: to.StringPtr(rrDatas[i]),
-			}
+		recs := make([]dns.AaaaRecord, 1)
+		recs[0] = dns.AaaaRecord{
+			Ipv6Address: to.StringPtr(rrDatas[0]),
 		}
+
+		// for i = range rrDatas {
+		// 	recs[i] = dns.AaaaRecord{
+		// 		Ipv6Address: to.StringPtr(rrDatas[i]),
+		// 	}
+		// }
 		props.AAAARecords = &recs
 
 	case "CNAME":
@@ -174,8 +181,28 @@ func (c *ResourceRecordChangeset) Apply() error {
 		var rrset = fromProviderRrset(addition)
 		recType := rrset.Type
 
-		glog.V(1).Infof("azuredns:  Addition:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
+		glog.V(0).Infof("azuredns:  Addition:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
 
+		props := rrset.RecordSetProperties
+		glog.V(0).Infof("Type %s\n",rrset.Type)
+		switch strings.TrimPrefix(*recType, "Microsoft.Network/dnszones/") {	
+		case "A":
+			for i := range *props.ARecords {
+				rec := *props.ARecords
+				glog.V(0).Infof("A Rec Ipv4: %s\n", *rec[i].Ipv4Address)
+			}
+
+		case "AAAA":
+			for i := range *props.AAAARecords {
+				rec := *props.AAAARecords
+				glog.V(0).Infof("AAAA Rec Ipv6: %s\n", *rec[i].Ipv6Address)
+			}
+
+		case "CNAME":
+			glog.V(0).Infof("CNAME: %s\n", *props.CNAMERecord.Cname)
+		}
+
+		
 		_, err := svc.CreateOrUpdateRecordSets(*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 		if err != nil {
 			glog.V(0).Infof("azuredns: Could not add DNS %s: %s", addition.Name(), err.Error())
