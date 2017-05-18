@@ -128,7 +128,7 @@ func fromProviderRrset( zoneName string, rrset dnsprovider.ResourceRecordSet) *d
 	recType := string(rrset.Type())
 
 	changeRecord := &dns.RecordSet{
-		Name: to.StringPtr(strings.TrimSuffix(strings.TrimSuffix(rrset.Name(), "."), zoneName) + "-" + recType),
+		Name: to.StringPtr(strings.TrimSuffix(rrset.Name(), ".")),
 		Type: to.StringPtr(recType),
 		ID: to.StringPtr(strings.TrimSuffix(strings.TrimSuffix(rrset.Name(), "."), zoneName)),
 	}
@@ -210,6 +210,8 @@ func (c *ResourceRecordChangeset) Apply() error {
 
 		case "CNAME":
 			glog.V(5).Infof("CNAME: %s for name: %s, ID: %s, TTL %i\n", *props.CNAMERecord.Cname, strings.TrimSuffix(*rrset.Name, "."), *rrset.ID, *rrset.RecordSetProperties.TTL)
+			*rrset.Name = strings.TrimSuffix(*rrset.Name, *zoneName)
+
 			*rrset.Name = strings.TrimSuffix( *rrset.Name, ".")
 			*rrset.ID = strings.TrimSuffix( *rrset.ID, ".")
 		}
