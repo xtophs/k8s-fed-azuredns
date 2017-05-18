@@ -48,7 +48,7 @@ func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error)
 		var r []dns.RecordSet = *result.Value
 		rs := r[i]
 		if( &rs != nil ) {
-			glog.V(5).Infof("recordset data: %v\n", rs)
+			glog.V(5).Infof("recordset data Name %s Type %s\n", *rs.Name, *rs.Type)
 			list[i] = &ResourceRecordSet{&(r[i]), &rrsets}
 		} else { 
 			glog.Fatalf("Recordset was nil\n")

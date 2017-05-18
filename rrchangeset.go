@@ -124,13 +124,17 @@ func recordSetPropertiesToRrDatas(rset *dns.RecordSet) []string {
 	return rrDatas
 }
 
-func fromProviderRrset(rrset dnsprovider.ResourceRecordSet) *dns.RecordSet {
+func fromProviderRrset( zoneName string, rrset dnsprovider.ResourceRecordSet) *dns.RecordSet {
 	recType := string(rrset.Type())
 
 	changeRecord := &dns.RecordSet{
-		Name: to.StringPtr(rrset.Name()),
+		Name: to.StringPtr(strings.TrimSuffix(strings.TrimSuffix(rrset.Name(), "."), zoneName)),
 		Type: to.StringPtr(recType),
+		ID: to.StringPtr(strings.TrimSuffix(strings.TrimSuffix(rrset.Name(), "."), zoneName)),
 	}
+
+	glog.V(5).Infof("New RecordSet: Name: %s ID: %s, Type: %s\n", *changeRecord.Name, *changeRecord.ID, *changeRecord.Type)
+	
 	changeRecord.RecordSetProperties = rrDatasToRecordSetProperties(
 		recType, rrset.Rrdatas())
 
@@ -149,7 +153,9 @@ func (c *ResourceRecordChangeset) Apply() error {
 	svc := *c.rrsets.zone.zones.interface_.service
 
 	for _, removal := range c.removals {
-		var rrset = fromProviderRrset(removal)
+		var rrset = fromProviderRrset(*zoneName, removal)
+		*rrset.Name = strings.TrimSuffix( *rrset.Name, ".")
+
 		recType := rrset.Type
 		// TODO Refactor
 		glog.V(1).Infof("azuredns: Delete:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
@@ -165,7 +171,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 	}
 
 	for _, upsert := range c.upserts {
-		var rrset = fromProviderRrset(upsert)
+		var rrset = fromProviderRrset(*zoneName, upsert)
 		recType := rrset.Type
 		glog.V(1).Infof("azuredns: Upsert:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
 
@@ -178,7 +184,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 	}
 
 	for _, addition := range c.additions {
-		var rrset = fromProviderRrset(addition)
+		var rrset = fromProviderRrset(*zoneName, addition)
 		recType := rrset.Type
 
 		glog.V(0).Infof("azuredns:  Addition:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
@@ -199,13 +205,15 @@ func (c *ResourceRecordChangeset) Apply() error {
 			}
 
 		case "CNAME":
-			glog.V(0).Infof("CNAME: %s\n", *props.CNAMERecord.Cname)
+			glog.V(5).Infof("CNAME: %s for name: %s, ID: %s, TTL %i\n", *props.CNAMERecord.Cname, strings.TrimSuffix(*rrset.Name, "."), *rrset.ID, *rrset.RecordSetProperties.TTL)
+			*rrset.Name = strings.TrimSuffix( *rrset.Name, ".")
+			*rrset.ID = strings.TrimSuffix( *rrset.ID, ".")
 		}
 
 		
 		_, err := svc.CreateOrUpdateRecordSets(*zoneName, *rrset.Name, dns.RecordType(*recType), *rrset, "", "*")
 		if err != nil {
-			glog.V(0).Infof("azuredns: Could not add DNS %s: %s", addition.Name(), err.Error())
+			glog.V(0).Infof("azuredns: Could not add DNS %s type %s: %s", addition.Name(), *recType, err.Error())
 			return err
 		}
 	}

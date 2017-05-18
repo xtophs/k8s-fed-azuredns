@@ -52,7 +52,7 @@ func( c *Clients) DeleteRecordSets(zoneName string, relativeRecordSetName string
 }
 
 func( c *Clients) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
-	glog.V(5).Infof("azuredns: CreateOrUpdate RecordSets type for zone %s in rg %s\n", string(recordType), zoneName, c.conf.Global.ResourceGroup)
+	glog.V(5).Infof("azuredns: CreateOrUpdate RecordSets type %s for zone %s in rg %s\n", string(recordType), zoneName, c.conf.Global.ResourceGroup)
 
 	return c.rc.CreateOrUpdate(c.conf.Global.ResourceGroup, 
 		zoneName, relativeRecordSetName , recordType, parameters, ifMatch, ifNoneMatch) 
