@@ -22,6 +22,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
+	"fmt"
 )
 
 // Compile time check for interface adherence
@@ -58,29 +59,28 @@ func rrDatasToRecordSetProperties(rrsType string, rrDatas []string) *dns.RecordS
 	// kubernetes 1.6.2 only handles A, AAAA and CNAME
 	switch rrsType {
 	case "A":
-		recs := make([]dns.ARecord, 1)
-			recs[0] = dns.ARecord{
-				Ipv4Address: to.StringPtr(rrDatas[0]),
-			}
+		recs := make([]dns.ARecord, 0)
 
-		// for i = range rrDatas {
-		// 	recs[i] = dns.ARecord{
-		// 		Ipv4Address: to.StringPtr(rrDatas[i]),
-		// 	}
-		// }
+		rrmap := make( map[string]string )
+
+		for i = range rrDatas {
+			if _, ok := rrmap[ rrDatas[i] ]; !ok {
+				fmt.Printf("new IP: %s\n", rrDatas[i])
+				rrmap[rrDatas[i]] = rrDatas[i]
+				recs = append( recs, dns.ARecord{
+					Ipv4Address: to.StringPtr(rrDatas[i]),
+				} )
+			}
+		}
 		props.ARecords = &recs
 
 	case "AAAA":
-		recs := make([]dns.AaaaRecord, 1)
-		recs[0] = dns.AaaaRecord{
-			Ipv6Address: to.StringPtr(rrDatas[0]),
+		recs := make([]dns.AaaaRecord, len(rrDatas))
+		for i = range rrDatas {
+			recs[i] = dns.AaaaRecord{
+				Ipv6Address: to.StringPtr(rrDatas[i]),
+			}
 		}
-
-		// for i = range rrDatas {
-		// 	recs[i] = dns.AaaaRecord{
-		// 		Ipv6Address: to.StringPtr(rrDatas[i]),
-		// 	}
-		// }
 		props.AAAARecords = &recs
 
 	case "CNAME":
@@ -128,10 +128,14 @@ func fromProviderRrset( zoneName string, rrset dnsprovider.ResourceRecordSet) *d
 	recType := string(rrset.Type())
 
 	changeRecord := &dns.RecordSet{
-		Name: to.StringPtr(strings.TrimSuffix(strings.TrimSuffix(rrset.Name(), "."), zoneName)),
+		Name: to.StringPtr(strings.TrimSuffix(strings.TrimSuffix(rrset.Name(), "."), zoneName) + "-" + recType),
 		Type: to.StringPtr(recType),
 		ID: to.StringPtr(strings.TrimSuffix(strings.TrimSuffix(rrset.Name(), "."), zoneName)),
 	}
+
+	// make sure ID and Name really don't have a trainling '.' 
+	*changeRecord.Name = strings.TrimSuffix(*changeRecord.Name, ".")
+	*changeRecord.ID = strings.TrimSuffix(*changeRecord.ID, ".") 
 
 	glog.V(5).Infof("New RecordSet: Name: %s ID: %s, Type: %s\n", *changeRecord.Name, *changeRecord.ID, *changeRecord.Type)
 	
@@ -190,7 +194,7 @@ func (c *ResourceRecordChangeset) Apply() error {
 		glog.V(0).Infof("azuredns:  Addition:\tRecordSet: %s Type: %s Zone Name: %s TTL: %i \n", *rrset.Name, *recType, *zoneName, *rrset.RecordSetProperties.TTL)
 
 		props := rrset.RecordSetProperties
-		glog.V(0).Infof("Type %s\n",rrset.Type)
+		glog.V(0).Infof("Type %s\n", *rrset.Type)
 		switch strings.TrimPrefix(*recType, "Microsoft.Network/dnszones/") {	
 		case "A":
 			for i := range *props.ARecords {
