@@ -48,7 +48,7 @@ func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error)
 		var r []dns.RecordSet = *result.Value
 		rs := r[i]
 		if( &rs != nil ) {
-			glog.V(5).Infof("recordset data Name %s Type %s\n", *rs.Name, *rs.Type)
+			glog.V(5).Infof("recordset data Name %s Type %s ID %s\n", *rs.Name, *rs.Type, *rs.ID)
 			list[i] = &ResourceRecordSet{&(r[i]), &rrsets}
 		} else { 
 			glog.Fatalf("Recordset was nil\n")
@@ -59,29 +59,26 @@ func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error)
 }
 
 func (rrsets ResourceRecordSets) Get(name string) ([]dnsprovider.ResourceRecordSet, error) {
-	glog.V(5).Infof("Get!\n")
 	if( rrsets.zone != nil ) {
-		glog.V(5).Infof("GETTING  RecordSets for zone %s\n", rrsets.zone.Name())
+		glog.V(5).Infof("GETTING  RecordSets for zone %q, requested %q", rrsets.zone.Name(), name)
 	} else {
 		glog.V(5).Infof("DANGER GETTING zone is nil\n")
 		
 	}
-	var newRrset dnsprovider.ResourceRecordSet
 	rrsetList, err := rrsets.List()
+	arr := make([]dnsprovider.ResourceRecordSet, 0) 
+
 	if err != nil {
 		return nil, err
 	}
 	for _, rrset := range rrsetList {
 		if rrset.Name() == name {
-			newRrset = rrset
-			break
+			arr = append( arr, rrsets.New( rrset.Name(), rrset.Rrdatas(), rrset.Ttl(), rrset.Type() ) )
 		}
 	}
-	var arr []dnsprovider.ResourceRecordSet
-	if newRrset != nil {
-		arr := make([]dnsprovider.ResourceRecordSet, 1) 
-		arr[0] = newRrset
-	} 
+
+	glog.V(5).Infof("azuredns: ResourceRecrdSets Get for %q returned %i records\n", name, len(arr))
+
 	return arr, nil
 }
 
