@@ -22,6 +22,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
+	"github.com/Azure/go-autorest/autorest/to"
+	"github.com/golang/glog"
 )
 
 // Compile time check for interface adherence
@@ -33,14 +35,17 @@ type ResourceRecordSet struct {
 }
 
 func (rrset ResourceRecordSet) Name() string {
-	return *rrset.impl.Name
+	if *rrset.impl.Name == "@" {
+		return *rrset.impl.Name
+	}
+
+	// k8s wants the full name, not the relative name
+	// the Azure DNS Recordset only has the relative name. Add the zone without the training dot
+	return *rrset.impl.Name + "." + rrset.rrsets.zone.Name()
 }
 
 func (rrset ResourceRecordSet) Rrdatas() []string {
-	// Sigh - need to unpack the strings out of the azuredns ResourceRecords
-	result := recordSetPropertiesToRrDatas(rrset.impl)
-
-	return result
+	return rrset.getRrDatas()
 }
 
 func (rrset ResourceRecordSet) Ttl() int64 {
@@ -55,11 +60,103 @@ func (rrset ResourceRecordSet) Type() rrstype.RrsType {
 	return rrstype.RrsType(strings.TrimPrefix(*rrset.impl.Type, "Microsoft.Network/dnszones/"))
 }
 
-// azurednsResourceRecordSet returns the azuredns ResourceRecordSet object for the ResourceRecordSet
-// This is a "back door" that allows for limited access to the ResourceRecordSet,
-// without having to requery it.
-// Using this method should be avoided where possible; instead prefer to add functionality
-// to the cross-provider ResourceRecordSet interface.
-func (rrset ResourceRecordSet) azurednsResourceRecordSet() *dns.RecordSet {
-	return rrset.impl
+
+
+func (rrset ResourceRecordSet) toRecordSet () *dns.RecordSet {
+	recType := string(rrset.Type())
+	// make sure to use the relative name of the RecordSet
+	nameCopy := string([]byte(*rrset.impl.Name))
+
+	r := &dns.RecordSet{
+		Name: &nameCopy,
+		Type: to.StringPtr(recType),
+		ID: &nameCopy,
+	}
+
+	glog.V(5).Infof("New RecordSet: Name: %s ID: %s, Type: %s\n", *r.Name, *r.ID, *r.Type)
+	
+	addRrDatasToRecordSet(r, rrset.Rrdatas())
+	r.RecordSetProperties.TTL = to.Int64Ptr(rrset.Ttl())
+	return r
 }
+
+// TODO: Refactor to RecordSet type	
+func (rrset ResourceRecordSet) getRrDatas() []string {
+
+	props := rrset.impl.RecordSetProperties
+	var rrDatas []string
+
+	switch strings.TrimPrefix(string(rrset.Type()), "Microsoft.Network/dnszones/") {
+	case "A":
+		rrDatas = make([]string, len(*props.ARecords))
+
+		for i := range *props.ARecords {
+			rec := *props.ARecords
+			rrDatas[i] = *rec[i].Ipv4Address
+		}
+
+	case "AAAA":
+		rrDatas = make([]string, len(*props.AAAARecords))
+
+		for i := range *props.AAAARecords {
+			rec := *props.AAAARecords
+			rrDatas[i] = *rec[i].Ipv6Address
+		}
+
+	case "CNAME":
+		rrDatas = make([]string, 1)
+		rrDatas[0] = *props.CNAMERecord.Cname
+	}
+
+	return rrDatas
+}
+
+func addRrDatasToRecordSet(rs *dns.RecordSet, rrDatas []string) {
+	props := dns.RecordSetProperties{}
+	var i int
+	rrsType := string(*rs.Type)
+	// kubernetes 1.6.2 only handles A, AAAA and CNAME
+	switch rrsType {
+	case "A":
+		recs := make([]dns.ARecord, 0)
+
+		rrmap := make( map[string]string )
+
+		for i = range rrDatas {
+			if _, ok := rrmap[ rrDatas[i] ]; !ok {
+				rrmap[rrDatas[i]] = rrDatas[i]
+				recs = append( recs, dns.ARecord{
+					Ipv4Address: to.StringPtr(rrDatas[i]),
+				} )
+			}
+		}
+		props.ARecords = &recs
+
+	case "AAAA":
+		recs := make([]dns.AaaaRecord, len(rrDatas))
+		for i = range rrDatas {
+			recs[i] = dns.AaaaRecord{
+				Ipv6Address: to.StringPtr(rrDatas[i]),
+			}
+		}
+		props.AAAARecords = &recs
+
+	case "CNAME":
+		for i = range rrDatas {
+			props.CNAMERecord = &dns.CnameRecord{
+				Cname: to.StringPtr(rrDatas[i]),
+			}
+		}
+	}
+
+	rs.RecordSetProperties = &props
+}
+
+func (rrset ResourceRecordSet) setRecordSetProperties(ttl int64, rrDatas []string) dnsprovider.ResourceRecordSet {
+
+	addRrDatasToRecordSet(rrset.impl, rrDatas)
+	rrset.impl.RecordSetProperties.TTL = to.Int64Ptr(ttl)
+
+	return rrset
+}
+

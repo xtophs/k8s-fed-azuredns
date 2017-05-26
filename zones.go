@@ -38,20 +38,20 @@ func (zones Zones) List() ([]dnsprovider.Zone, error) {
 	var zoneList []dnsprovider.Zone
 
 	if err == nil {
-		glog.V(5).Infof("got %i zones\n", len(*azZoneList.Value))
+		glog.V(5).Infof("azuredns: got %i zones\n", len(*azZoneList.Value))
 		for i := range *azZoneList.Value {
 			zone:= (*azZoneList.Value)[i]
-			glog.V(5).Infof("got %s\n", *zone.Name)
 			zoneList = append( zoneList, &Zone{&zone, &zones}) 
 		}
+		// verifying
+		for _, z := range zoneList {
+			glog.V(5).Infof("azuredns: returning: %s\n", z.Name())
+		}
 	} else {
-		glog.V(5).Infof("Error listing: %s\n", err.Error())
+		glog.V(5).Infof("azuredns: Error listing: %s\n", err.Error())
+		return nil, err
 	}
 
-	// verifying
-	for _, z := range zoneList {
-		glog.V(0).Infof("returning: %s\n", z.Name())
-	}
 	return zoneList, nil
 }
 

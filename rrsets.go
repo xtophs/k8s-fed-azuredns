@@ -17,8 +17,8 @@ limitations under the License.
 package azuredns
 
 import (
+	"strings"
 	"github.com/Azure/azure-sdk-for-go/arm/dns"	
-	"github.com/Azure/go-autorest/autorest/to"	
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 	"github.com/golang/glog"
@@ -48,7 +48,7 @@ func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error)
 		var r []dns.RecordSet = *result.Value
 		rs := r[i]
 		if( &rs != nil ) {
-			glog.V(5).Infof("recordset data Name %s Type %s ID %s\n", *rs.Name, *rs.Type, *rs.ID)
+			glog.V(4).Infof("recordset data Name %s Type %s ID %s\n", *rs.Name, *rs.Type, *rs.ID)
 			list[i] = &ResourceRecordSet{&(r[i]), &rrsets}
 		} else { 
 			glog.Fatalf("Recordset was nil\n")
@@ -72,13 +72,16 @@ func (rrsets ResourceRecordSets) Get(name string) ([]dnsprovider.ResourceRecordS
 		return nil, err
 	}
 	for _, rrset := range rrsetList {
+		glog.V(5).Infof("azuredns: ResourceRecrdSets Get looking for %q found %q\n", name, rrset.Name())
 		if rrset.Name() == name {
 			arr = append( arr, rrsets.New( rrset.Name(), rrset.Rrdatas(), rrset.Ttl(), rrset.Type() ) )
 		}
 	}
 
 	glog.V(5).Infof("azuredns: ResourceRecrdSets Get for %q returned %i records\n", name, len(arr))
-
+	if len(arr) <= 0 {
+		return nil, nil
+	}
 	return arr, nil
 }
 
@@ -91,17 +94,19 @@ func (r ResourceRecordSets) StartChangeset() dnsprovider.ResourceRecordChangeset
 
 func (r ResourceRecordSets) New(name string, rrdatas []string, ttl int64, rrstype rrstype.RrsType) dnsprovider.ResourceRecordSet {
 	rrstypeStr := string(rrstype)
-	rrs := &dns.RecordSet{
-		Name: &name,
+
+	relativeName := strings.TrimSuffix( name, *r.zone.impl.Name )
+	relativeName = strings.TrimSuffix( relativeName, ".")
+	rs := &dns.RecordSet{
+		Name: &relativeName,
 		Type: &rrstypeStr,
 	}
-
-	rrs.RecordSetProperties = rrDatasToRecordSetProperties(rrstypeStr, rrdatas)
-	rrs.TTL = to.Int64Ptr(ttl)
-	return ResourceRecordSet{
-		rrs,
+	
+	rrs := ResourceRecordSet{
+		rs,
 		&r,
 	}
+	return rrs.setRecordSetProperties(ttl, rrdatas)
 }
 
 // Zone returns the parent zone

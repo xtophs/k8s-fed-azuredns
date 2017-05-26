@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 	//"strconv"
-
+	"bufio"
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
 	"github.com/Azure/go-autorest/autorest/to"
 
@@ -129,7 +129,40 @@ func firstZone(t *testing.T) dnsprovider.Zone {
 		t.Logf("Got at least 1 zone in list:%v\n", zones[0])
 		t.Logf("Got at least 1 zone in list:%s\n", zones[0].Name())
 	}
+
+	for _, z := range zones {
+		if z.Name() == "xtoph.local" {
+			return z
+		}
+	}
+
 	return zones[0]
+}
+
+func testZone(t *testing.T) dnsprovider.Zone {
+	z := zones(t)
+
+	zones, err := z.List()
+	if err != nil {
+		t.Fatalf("Failed to list zones: %v", err)
+	} else {
+		t.Logf("Got zone list: %v with %i zones\n", zones, len(zones))
+	}
+	if len(zones) < 1 {
+		t.Fatalf("Zone listing returned %d, expected >= %d", len(zones), 1)
+	} else {
+		t.Logf("Got at least 1 zone in list:%v\n", zones[0])
+		t.Logf("Got at least 1 zone in list:%s\n", zones[0].Name())
+	}
+
+	for _, z := range zones {
+		if z.Name() == "test.com" {
+			return z
+		}
+	}
+
+	t.Fatalf("zone test.com not present")
+	return nil
 }
 
 func xtophsZone(t *testing.T) dnsprovider.Zone {
@@ -182,9 +215,13 @@ func listRrsOrFail(t *testing.T, rrsets dnsprovider.ResourceRecordSets) []dnspro
 
 func getExampleRrs(zone dnsprovider.Zone) dnsprovider.ResourceRecordSet {
 	rrsets, _ := zone.ResourceRecordSets()
-	return rrsets.New("www1."+zone.Name(), []string{"13.88.18.250", "13.88.18.250"}, 180, rrstype.A)
+	return rrsets.New("www1."+zone.Name(), []string{"10.10.10.10", "169.20.20.20"}, 180, rrstype.A)
 }
 
+func getExampleRrsDuplicate(zone dnsprovider.Zone) dnsprovider.ResourceRecordSet {
+	rrsets, _ := zone.ResourceRecordSets()
+	return rrsets.New("www1."+zone.Name(), []string{"13.88.18.250", "13.88.18.250"}, 180, rrstype.A)
+}
 
 func getExampleCNAMERrs(zone dnsprovider.Zone) dnsprovider.ResourceRecordSet {
 	rrsets, _ := zone.ResourceRecordSets()
@@ -248,26 +285,26 @@ func TestZonesID(t *testing.T) {
 }
 
 /* TestZoneAddSuccess verifies that addition of a valid managed DNS zone succeeds */
-func TestZoneAddSuccess(t *testing.T) {
-	testZoneName := "ubernetes.testing"
-	z := zones(t)
-	input, err := z.New(testZoneName)
-	if err != nil {
-		t.Errorf("Failed to allocate new zone object %s: %v", testZoneName, err)
-	}
-	zone, err := z.Add(input)
-	if err != nil {
-		t.Errorf("Failed to create new managed DNS zone %s: %v", testZoneName, err)
-	}
-	defer func(zone dnsprovider.Zone) {
-		if zone != nil {			
-			if err := z.Remove(zone); err != nil {
-				t.Errorf("Failed to delete zone %v: %v", zone, err)
-			}
-		}
-	}(zone)
-	t.Logf("Successfully added managed DNS zone: %v", zone)
-}
+// func TestZoneAddSuccess(t *testing.T) {
+// 	testZoneName := "ubernetes.testing"
+// 	z := zones(t)
+// 	input, err := z.New(testZoneName)
+// 	if err != nil {
+// 		t.Errorf("Failed to allocate new zone object %s: %v", testZoneName, err)
+// 	}
+// 	zone, err := z.Add(input)
+// 	if err != nil {
+// 		t.Errorf("Failed to create new managed DNS zone %s: %v", testZoneName, err)
+// 	}
+// 	defer func(zone dnsprovider.Zone) {
+// 		if zone != nil {			
+// 			if err := z.Remove(zone); err != nil {
+// 				t.Errorf("Failed to delete zone %v: %v", zone, err)
+// 			}
+// 		}
+// 	}(zone)
+// 	t.Logf("Successfully added managed DNS zone: %v", zone)
+// }
 
 /* TestResourceRecordSetsList verifies that listing of RRS's succeeds */
 func TestResourceRecordSetsList(t *testing.T) {
@@ -276,10 +313,19 @@ func TestResourceRecordSetsList(t *testing.T) {
 
 /* TestResourceRecordSetsAddSuccess verifies that addition of a valid RRS succeeds */
 func TestResourceRecordSetsAddSuccess(t *testing.T) {
-	//t.Logf("XTOPH")
 	zone := firstZone(t)
 	sets := rrs(t, zone)
 	set := getExampleRrs(zone)
+	addRrsetOrFail(t, sets, set)
+	defer sets.StartChangeset().Remove(set).Apply()
+	t.Logf("Successfully added resource record set: %v", set)
+}
+
+/* TestResourceRecordSetsAddSuccess verifies that addition of a valid RRS succeeds */
+func TestResourceRecordSetsAddWithDuplicateSuccess(t *testing.T) {
+	zone := firstZone(t)
+	sets := rrs(t, zone)
+	set := getExampleRrsDuplicate(zone)
 	addRrsetOrFail(t, sets, set)
 	defer sets.StartChangeset().Remove(set).Apply()
 	t.Logf("Successfully added resource record set: %v", set)
@@ -294,11 +340,14 @@ func TestResourceRecordSetsAdditionVisible(t *testing.T) {
 	t.Logf("Successfully added resource record set: %v", rrset)
 	found := false
 	for _, record := range listRrsOrFail(t, sets) {
+		t.Logf("comparing %q with %q", record.Name(), rrset.Name())
 		if record.Name() == rrset.Name() {
 			found = true
 			break
 		}
 	}
+	reader := bufio.NewReader(os.Stdin)
+	reader.ReadString('\n')
 	defer sets.StartChangeset().Remove(rrset).Apply()
 
 	if !found {
@@ -370,17 +419,21 @@ func TestResourceRecordSetsRemoveGone(t *testing.T) {
 
 // func TestResourceRecordSetPaging(t * testing.T){
 // 	// TODO
+// 	count := 12
 // 	zone := firstZone(t)
 // 	sets := rrs(t, zone)
 // 	addchanges := sets.StartChangeset()
 // 	deletechanges := sets.StartChangeset()
 // 	rrsets, _ := zone.ResourceRecordSets()
-// 	for i:=0; i < 50; i++ {
+// 	for i:=0; i < count; i++ {
 // 		s := strconv.Itoa(i)
 // 		r := rrsets.New("www12"+s+"."+zone.Name(), []string{"10.10.10." + s, "169.20.20." + s}, 180, rrstype.A)
+
 // 		addchanges.Add(r)
 // 		deletechanges.Add(r)
 // 	}
+// 	defer deletechanges.Apply()	
+
 // 	err := addchanges.Apply()
 // 	if err != nil {
 // 		t.Fatalf("Failed to add %i recordsets: %v", 50, err)
@@ -389,17 +442,10 @@ func TestResourceRecordSetsRemoveGone(t *testing.T) {
 // 	rrset, err := rrsets.List()
 // 	if err != nil {
 // 		t.Fatalf("Failed to list recordsets: %v", err)
+// 	} else if len(rrset) != count {
+// 			t.Fatalf("Record set length=%d, expected >=0", len(rrset), count)
 // 	} else {
-// 		if len(rrset) < 50 {
-// 			t.Fatalf("Record set length=%d, expected >=0", len(rrset))
-// 		} else {
-// 			t.Logf("Got %d recordsets: %v", len(rrset), rrset)
-// 		}
-// 	}
-
-// 	err = deletechanges.Apply()
-// 	if err != nil {
-// 		t.Fatalf("Failed to add %i recordsets: %v", 50, err)
+// 			t.Logf("Got %d recordsets as expected", len(rrset))
 // 	}
 
 // 	return 

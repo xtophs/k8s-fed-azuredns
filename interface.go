@@ -46,13 +46,13 @@ type Clients struct {
 }
 
 func( c *Clients) DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error){
-	glog.V(5).Infof("azuredns: Deleting RecordSet type %s for zone %s in rg %s\n", string(recordType), zoneName, c.conf.Global.ResourceGroup)
+	glog.V(4).Infof("azuredns: Deleting RecordSet %q type %q for zone %s in rg %q\n", relativeRecordSetName, string(recordType), zoneName, c.conf.Global.ResourceGroup)
 
 	return c.rc.Delete(c.conf.Global.ResourceGroup, zoneName, relativeRecordSetName, recordType, ifMatch) 
 }
 
 func( c *Clients) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
-	glog.V(5).Infof("azuredns: CreateOrUpdate RecordSets type %s for zone %s in rg %s\n", string(recordType), zoneName, c.conf.Global.ResourceGroup)
+	glog.V(4).Infof("azuredns: CreateOrUpdate RecordSets %q type %q for zone %q in rg %q\n", relativeRecordSetName, string(recordType), zoneName, c.conf.Global.ResourceGroup)
 
 	return c.rc.CreateOrUpdate(c.conf.Global.ResourceGroup, 
 		zoneName, relativeRecordSetName , recordType, parameters, ifMatch, ifNoneMatch) 
@@ -61,21 +61,31 @@ func( c *Clients) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetNam
 func( c *Clients) ListResourceRecordSetsByZone(zoneName string )(dns.RecordSetListResult, error)  {
 	glog.V(5).Infof("azuredns: Listing RecordSets for zone %s in rg %s\n", zoneName, c.conf.Global.ResourceGroup)
 
-	// var records []dns.RecordSet = make([]dns.RecordSet, 0)
+	//var records []dns.RecordSet = make([]dns.RecordSet, 0)
 
 	// TODO: paging
 	result, err := c.rc.ListByDNSZone(	c.conf.Global.ResourceGroup,
 		zoneName,
-		to.Int32Ptr(100))
+		to.Int32Ptr(1000) )
+
+	// for _, r := range *result.Value {
+	// 	records = append(records, r)
+	// }
+
 
 	// if result.NextLink != nil {
 	// 	if *result.NextLink != "" {
+	// 		result, err := c.rc.ListByDNSZone(	c.conf.Global.ResourceGroup,
+	// 			zoneName,
+	// 			to.Int32Ptr(10))
+
 	// 		for _, r := range *result.Value {
 	// 			records = append(records, r)
 	// 		}
-	// 		*result.Value = records 
 	// 	}
 	// }
+
+	//*result.Value = records 
 
 	return result, err
 }
@@ -117,7 +127,7 @@ func NewClients(config Config) *Interface {
 	}
 
 	var clients *Clients
-	clients = &Clients{}
+	clients = &Clients{}			
 
 	glog.V(4).Infof("azuredns: Created Azure DNS clients for subscription: %s", config.Global.SubscriptionID)
 
