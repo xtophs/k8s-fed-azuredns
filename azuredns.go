@@ -22,9 +22,8 @@ import (
 	"io"
 	//"bytes"
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	gcfg "gopkg.in/gcfg.v1"
-
+	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 )
 
 const (
@@ -56,11 +55,25 @@ func newazuredns(config io.Reader) (*Interface, error) {
 	if err := gcfg.ReadInto(&azConfig, config); err != nil {
 		glog.Errorf("Couldn't read config: %v", err)
 		return nil, err
-		}
-		
-	// TODO
-	// check config
+	}
+
 	glog.V(4).Infof("Azure DNS config: %v", azConfig)
 
-	return NewClients(azConfig), nil
+	if azConfig.Global.ResourceGroup == "" {
+		return nil, fmt.Errorf("No Azure Resource Group for Azure DNS configured")
+	}
+
+	if azConfig.Global.ClientID == "" || azConfig.Global.Secret == "" {
+		return nil, fmt.Errorf("Incorrect AAD Service Principal credentials. Check  az ad sp create-for-rbac for help")
+	}
+
+	if azConfig.Global.TenantID == "" {
+		return nil, fmt.Errorf("Missing AAD Tenant ID.")
+	}
+
+	if azConfig.Global.SubscriptionID == "" {
+		return nil, fmt.Errorf("Missing Azure Subscription ID.")
+	}
+
+	return NewAPI(azConfig), nil
 }

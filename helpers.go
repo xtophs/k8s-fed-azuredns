@@ -2,8 +2,6 @@ package azuredns
 
 import (
 	"encoding/json"
-	"fmt"
-
 	"github.com/Azure/go-autorest/autorest/azure"
 )
 
@@ -20,30 +18,11 @@ func ToJSON(v interface{}) (string, error) {
 
 // NewServicePrincipalTokenFromCredentials creates a new ServicePrincipalToken using values of the
 // passed credentials map.
-func NewServicePrincipalTokenFromCredentials(c map[string]string, scope string) (*azure.ServicePrincipalToken, error) {
-	oauthConfig, err := azure.PublicCloud.OAuthConfigForTenant(c["AZURE_TENANT_ID"])
+// This implementation is "borrowed" from a later version of the azuresdk-for-go/arm/examples
+func NewServicePrincipalTokenFromCredentials(config Config, scope string) (*azure.ServicePrincipalToken, error) {
+	oauthConfig, err := azure.PublicCloud.OAuthConfigForTenant(config.Global.TenantID)
 	if err != nil {
 		panic(err)
 	}
-	return azure.NewServicePrincipalToken(*oauthConfig, c["AZURE_CLIENT_ID"], c["AZURE_CLIENT_SECRET"], scope)
-}
-
-func ensureValueStrings(mapOfInterface map[string]interface{}) map[string]string {
-	mapOfStrings := make(map[string]string)
-	for key, value := range mapOfInterface {
-		mapOfStrings[key] = ensureValueString(value)
-	}
-	return mapOfStrings
-}
-
-func ensureValueString(value interface{}) string {
-	if value == nil {
-		return ""
-	}
-	switch v := value.(type) {
-	case string:
-		return v
-	default:
-		return fmt.Sprintf("%v", v)
-	}
+	return azure.NewServicePrincipalToken(*oauthConfig, config.Global.ClientID, config.Global.Secret, scope)
 }

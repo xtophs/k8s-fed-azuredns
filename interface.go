@@ -36,13 +36,10 @@ type Interface struct {
 	service *AzureDNSAPI
 }
 
-
-
 type Clients struct {
 	rc      dns.RecordSetsClient
 	zc      dns.ZonesClient
 	conf    Config
-	confMap map[string]string
 }
 
 func( c *Clients) DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error){
@@ -112,30 +109,16 @@ func New(service *AzureDNSAPI) *Interface {
 	return &Interface{service}
 }
 
-func NewClients(config Config) *Interface {
-
-	// TODO
-	c := map[string]string{
-		"AZURE_CLIENT_ID":       config.Global.ClientID,
-		"AZURE_CLIENT_SECRET":   config.Global.Secret,
-		"AZURE_SUBSCRIPTION_ID": config.Global.SubscriptionID,
-		"AZURE_TENANT_ID":       config.Global.TenantID}
-
-	if err := checkEnvVar(&c); err != nil {
-		glog.Fatalf("Error in config: %v", err)
-		return nil
-	}
-
+func NewAPI(config Config) *Interface {
 	var clients *Clients
 	clients = &Clients{}			
 
 	glog.V(4).Infof("azuredns: Created Azure DNS clients for subscription: %s", config.Global.SubscriptionID)
 
 	clients.conf = config
-	clients.confMap = c
 
 	clients.zc = dns.NewZonesClient(config.Global.SubscriptionID)
-	spt, err := NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
+	spt, err := NewServicePrincipalTokenFromCredentials(config, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
 		glog.Fatalf("azuredns: Error authenticating to Azure DNS: %v", err)
 		return nil
@@ -144,16 +127,14 @@ func NewClients(config Config) *Interface {
 	clients.zc.Authorizer = spt
 
 	clients.rc = dns.NewRecordSetsClient(config.Global.SubscriptionID)
-	spt, err = NewServicePrincipalTokenFromCredentials(c, azure.PublicCloud.ResourceManagerEndpoint)
+	spt, err = NewServicePrincipalTokenFromCredentials(config, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
 		glog.Fatalf("azuredns: Error authenticating to Azure DNS: %v", err)
 		return nil
 	}
 
 	clients.rc.Authorizer = spt
-
 	var api AzureDNSAPI = clients
-	
 	return &Interface{&api}
 }
 
