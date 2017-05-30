@@ -114,7 +114,6 @@ func (a Api) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName str
 }
 
 func (a Api) ListResourceRecordSetsByZone(zoneName string) (dns.RecordSetListResult, error) {
-	fmt.Printf("listing\n")
 	var arr []dns.RecordSet = make([]dns.RecordSet, 0)
 	result := dns.RecordSetListResult{}
 	result.Value = &arr

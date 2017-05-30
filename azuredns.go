@@ -43,7 +43,6 @@ type Config struct {
 func init() {
 	dnsprovider.RegisterDnsProvider(ProviderName, func(config io.Reader) (dnsprovider.Interface, error) {
 		glog.V(5).Infof("Registering Azure DNS provider\n")
-		fmt.Printf("Registering Azure DNS provider\n")
 		return newazuredns(config)
 	})
 }

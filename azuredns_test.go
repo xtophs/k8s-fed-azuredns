@@ -22,15 +22,15 @@ import (
 	"os"
 	"strings"
 	"testing"
-	//"strconv"
+
 	"bufio"
+
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
 	"github.com/Azure/go-autorest/autorest/to"
 
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/tests"
-
 )
 
 func newTestInterface() (dnsprovider.Interface, error) {
@@ -40,15 +40,18 @@ func newTestInterface() (dnsprovider.Interface, error) {
 	}
 
 	// Use this to test the real cloud service.
-	i, err := newAzureDNSProvider()
+	//i, err := newAzureDNSProvider()
 
 	// Use this to stub out the entire cloud service
-	//i, err :=  newFakeInterface() 
+	i, err := newFakeInterface()
 	return i, err
 }
 
 func newAzureDNSProvider() (dnsprovider.Interface, error) {
-	i, err := dnsprovider.GetDnsProvider(ProviderName, strings.NewReader("\n[Global]\nsubscription-id = ffa90503-6fe8-4ab5-9bf1-059f81a6d8bb\ntenant-id = 66841164-1e0e-4ffc-a0d2-ce36f95ec41d\nclient-id = eebec4ca-c175-45dc-b763-943607ce4838\nsecret = 9f4ba4e0-be35-4821-9aa6-4caadfaba4fa\nresourceGroup = delete-dns"))
+	return nil, fmt.Errorf("Need to set up provider credentials. azuredns_test.go:newAzureDNSProvider for details")
+	//i, err := dnsprovider.GetDnsProvider(ProviderName, strings.NewReader("\n[Global]\nsubscription-id = ffa90503-6fe8-4ab5-9bf1-059f81a6d8bb\ntenant-id = 66841164-1e0e-4ffc-a0d2-ce36f95ec41d\nclient-id = eebec4ca-c175-45dc-b763-943607ce4838\nsecret = 9f4ba4e0-be35-4821-9aa6-4caadfaba4fa\nresourceGroup = delete-dns"))
+
+	i, err := dnsprovider.GetDnsProvider(ProviderName, strings.NewReader("\n[Global]\nsubscription-id = [subscription id]\ntenant-id = [tenant id]\nclient-id = [sp client id]\nsecret = [sp secret]\nresourceGroup = [rg name]"))
 	if i == nil || err != nil {
 		fmt.Printf("DNS provider %s not registered", ProviderName)
 		os.Exit(1)
@@ -76,7 +79,7 @@ func newFakeInterface() (dnsprovider.Interface, error) {
 		os.Exit(1)
 	}
 
-	_, err := svc.CreateOrUpdateZone( zoneName, params, "", "")
+	_, err := svc.CreateOrUpdateZone(zoneName, params, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +178,7 @@ func xtophsZone(t *testing.T) dnsprovider.Zone {
 		if z.Name() == "xtophs.com" {
 			zone = z
 			break
-		} 
+		}
 	}
 	if err != nil {
 		t.Fatalf("Failed to get xtoph zone: %v", err)
@@ -184,7 +187,7 @@ func xtophsZone(t *testing.T) dnsprovider.Zone {
 	}
 
 	if z == nil {
-		t.Fatalf("Failed to get xtoph zone: %v", err)		
+		t.Fatalf("Failed to get xtoph zone: %v", err)
 	}
 	return zone
 }
@@ -218,6 +221,8 @@ func getExampleRrs(zone dnsprovider.Zone) dnsprovider.ResourceRecordSet {
 	return rrsets.New("www1."+zone.Name(), []string{"10.10.10.10", "169.20.20.20"}, 180, rrstype.A)
 }
 
+// Azure DNS doesn't like mulitple A records with the same IP address
+// This test makes sure the provider filters out duplicates
 func getExampleRrsDuplicate(zone dnsprovider.Zone) dnsprovider.ResourceRecordSet {
 	rrsets, _ := zone.ResourceRecordSets()
 	return rrsets.New("www1."+zone.Name(), []string{"13.88.18.250", "13.88.18.250"}, 180, rrstype.A)
@@ -227,7 +232,6 @@ func getExampleCNAMERrs(zone dnsprovider.Zone) dnsprovider.ResourceRecordSet {
 	rrsets, _ := zone.ResourceRecordSets()
 	return rrsets.New("www1.hack.local.", []string{"alias." + zone.Name()}, 180, rrstype.CNAME)
 }
-
 
 func getInvalidRrs(zone dnsprovider.Zone) dnsprovider.ResourceRecordSet {
 	rrsets, _ := zone.ResourceRecordSets()
@@ -271,8 +275,9 @@ func TestAddRemoveCNAme(t *testing.T) {
 	if found {
 		t.Errorf("Deleted resource record set %v is still present", rrset)
 	}
-	
+
 }
+
 /* TestZonesID verifies that the id of the zone is returned with the prefix removed */
 func TestZonesID(t *testing.T) {
 	zone := firstZone(t)
@@ -297,7 +302,7 @@ func TestZonesID(t *testing.T) {
 // 		t.Errorf("Failed to create new managed DNS zone %s: %v", testZoneName, err)
 // 	}
 // 	defer func(zone dnsprovider.Zone) {
-// 		if zone != nil {			
+// 		if zone != nil {
 // 			if err := z.Remove(zone); err != nil {
 // 				t.Errorf("Failed to delete zone %v: %v", zone, err)
 // 			}
@@ -432,7 +437,7 @@ func TestResourceRecordSetsRemoveGone(t *testing.T) {
 // 		addchanges.Add(r)
 // 		deletechanges.Add(r)
 // 	}
-// 	defer deletechanges.Apply()	
+// 	defer deletechanges.Apply()
 
 // 	err := addchanges.Apply()
 // 	if err != nil {
@@ -448,9 +453,8 @@ func TestResourceRecordSetsRemoveGone(t *testing.T) {
 // 			t.Logf("Got %d recordsets as expected", len(rrset))
 // 	}
 
-// 	return 
+// 	return
 // }
-
 
 /* TestResourceRecordSetsReplace verifies that replacing an RRS works */
 func TestResourceRecordSetsReplace(t *testing.T) {

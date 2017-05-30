@@ -46,12 +46,3 @@ func (zone *Zone) ID() string {
 func (zone *Zone) ResourceRecordSets() (dnsprovider.ResourceRecordSets, bool) {
 	return &ResourceRecordSets{zone}, true
 }
-
-// azurednsHostedZone returns the azuredns HostedZone object for the zone.
-// This is a "back door" that allows for limited access to the HostedZone,
-// without having to requery it, so that we can expose AWS specific functionality.
-// Using this method should be avoided where possible; instead prefer to add functionality
-// to the cross-provider Zone interface.
-func (zone *Zone) azurednsZone() *dns.Zone {
-	return zone.impl
-}
