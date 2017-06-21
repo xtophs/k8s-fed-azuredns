@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// azuredns is the implementation of pkg/dnsprovider interface for azuredns
+// Package azuredns is the implementation of pkg/dnsprovider interface for azuredns
 package azuredns
 
 import (
@@ -27,9 +27,13 @@ import (
 )
 
 const (
+	// ProviderName is the name by which the provider whill be identified.
+	// pass this to the kubefed --dns-provider argument
 	ProviderName = "azure-azuredns"
 )
 
+// Config holds the parameters from the
+// dns-provider-config file
 type Config struct {
 	Global struct {
 		SubscriptionID string `gcfg:"subscription-id"`
@@ -67,12 +71,12 @@ func newazuredns(config io.Reader) (*Interface, error) {
 	}
 
 	if azConfig.Global.TenantID == "" {
-		return nil, fmt.Errorf("Missing AAD Tenant ID.")
+		return nil, fmt.Errorf("Missing AAD Tenant ID")
 	}
 
 	if azConfig.Global.SubscriptionID == "" {
-		return nil, fmt.Errorf("Missing Azure Subscription ID.")
+		return nil, fmt.Errorf("Missing Azure Subscription ID")
 	}
 
-	return NewAPI(azConfig), nil
+	return New(azConfig), nil
 }

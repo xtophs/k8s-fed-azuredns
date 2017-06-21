@@ -22,124 +22,144 @@ import (
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
-	"github.com/Azure/go-autorest/autorest/to"
 )
+
+// API is an interface abstracting the Azure DNS clients from azure-sdk-for-go behind a single interface
+// The mock implementation is below
+type API interface {
+	ListZones() (dns.ZoneListResult, error)
+	CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string) (dns.Zone, error)
+	DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (result autorest.Response, err error)
+	ListResourceRecordSetsByZone(zoneName string) (*[]dns.RecordSet, error)
+	CreateOrUpdateRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error)
+	DeleteRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error)
+}
 
 // Compile time check for interface adherence
 var _ dnsprovider.Interface = Interface{}
 
-var _ AzureDNSAPI = &Clients{}
-
+// Interface is the abstraction layer to allow for mocking
 type Interface struct {
-	service *AzureDNSAPI
+	service API
 }
 
-type Clients struct {
-	rc      dns.RecordSetsClient
-	zc      dns.ZonesClient
-	conf    Config
+// Zones initializes a new Zones interface, which is the root
+// of the DNS hierarchy
+func (c Interface) Zones() (dnsprovider.Zones, bool) {
+	return Zones{&c}, true
 }
 
-func( c *Clients) DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error){
+// compile time check
+var _ API = &DNSAPI{}
+
+// DNSAPI implements the API interface, which abstracts a small subset of
+// the Azure SDK DNS API for mocking purposes
+type DNSAPI struct {
+	rc   dns.RecordSetsClient
+	zc   dns.ZonesClient
+	conf Config
+}
+
+// DeleteRecordSet deletes a DNS record
+func (c *DNSAPI) DeleteRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error) {
 	glog.V(4).Infof("azuredns: Deleting RecordSet %q type %q for zone %s in rg %q\n", relativeRecordSetName, string(recordType), zoneName, c.conf.Global.ResourceGroup)
 
-	return c.rc.Delete(c.conf.Global.ResourceGroup, zoneName, relativeRecordSetName, recordType, ifMatch) 
+	return c.rc.Delete(c.conf.Global.ResourceGroup, zoneName, relativeRecordSetName, recordType, ifMatch)
 }
 
-func( c *Clients) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
+// CreateOrUpdateRecordSet creates or updates a Record Set
+func (c *DNSAPI) CreateOrUpdateRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
 	glog.V(4).Infof("azuredns: CreateOrUpdate RecordSets %q type %q for zone %q in rg %q\n", relativeRecordSetName, string(recordType), zoneName, c.conf.Global.ResourceGroup)
 
-	return c.rc.CreateOrUpdate(c.conf.Global.ResourceGroup, 
-		zoneName, relativeRecordSetName , recordType, parameters, ifMatch, ifNoneMatch) 
+	return c.rc.CreateOrUpdate(c.conf.Global.ResourceGroup,
+		zoneName, relativeRecordSetName, recordType, parameters, ifMatch, ifNoneMatch)
 }
 
-func( c *Clients) ListResourceRecordSetsByZone(zoneName string )(dns.RecordSetListResult, error)  {
+func (c *DNSAPI) appendListRecordSetsResult(rrsets *[]dns.RecordSet, result dns.RecordSetListResult) error {
+	for _, rset := range *result.Value {
+		*rrsets = append(*rrsets, rset)
+	}
+
+	if result.NextLink != nil {
+		result, err := c.rc.ListByDNSZoneNextResults(result)
+		if err == nil {
+			c.appendListRecordSetsResult(rrsets, result)
+		} else {
+			return err
+		}
+	}
+	return nil
+}
+
+// ListResourceRecordSetsByZone lists all record sets for a zone
+func (c *DNSAPI) ListResourceRecordSetsByZone(zoneName string) (*[]dns.RecordSet, error) {
 	glog.V(5).Infof("azuredns: Listing RecordSets for zone %s in rg %s\n", zoneName, c.conf.Global.ResourceGroup)
 
-	//var records []dns.RecordSet = make([]dns.RecordSet, 0)
+	rrsets := make([]dns.RecordSet, 0)
 
-	// TODO: paging
-	result, err := c.rc.ListByDNSZone(	c.conf.Global.ResourceGroup,
+	result, err := c.rc.ListByDNSZone(c.conf.Global.ResourceGroup,
 		zoneName,
-		to.Int32Ptr(1000) )
+		to.Int32Ptr(1000))
 
-	// for _, r := range *result.Value {
-	// 	records = append(records, r)
-	// }
+	err = c.appendListRecordSetsResult(&rrsets, result)
 
-
-	// if result.NextLink != nil {
-	// 	if *result.NextLink != "" {
-	// 		result, err := c.rc.ListByDNSZone(	c.conf.Global.ResourceGroup,
-	// 			zoneName,
-	// 			to.Int32Ptr(10))
-
-	// 		for _, r := range *result.Value {
-	// 			records = append(records, r)
-	// 		}
-	// 	}
-	// }
-
-	//*result.Value = records 
-
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+	return &rrsets, nil
 }
 
-func( c *Clients ) ListZones() ( dns.ZoneListResult, error) {
+// ListZones lists the zones in the configured resource group
+func (c *DNSAPI) ListZones() (dns.ZoneListResult, error) {
 	glog.V(5).Infof("azuredns: Requesting DNS zones")
 	// request all 100 zones. 100 is the current limit per subscription
-	return c.zc.List( to.Int32Ptr(100))
+	return c.zc.List(to.Int32Ptr(100))
 }
 
-func( c *Clients ) CreateOrUpdateZone( zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string ) (  dns.Zone, error) {
+// CreateOrUpdateZone creates or updates a zone
+func (c *DNSAPI) CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string) (dns.Zone, error) {
 	glog.V(4).Infof("azuredns: Creating Zone: %s, in resource group: %s\n", zoneName, c.conf.Global.ResourceGroup)
-	return c.zc.CreateOrUpdate(c.conf.Global.ResourceGroup, zoneName, zone, ifMatch, ifNoneMatch )
+	return c.zc.CreateOrUpdate(c.conf.Global.ResourceGroup, zoneName, zone, ifMatch, ifNoneMatch)
 }
 
-func( c *Clients ) DeleteZone( zoneName string, ifMatch string, cancel <-chan struct{}) (result autorest.Response, err error){
+// DeleteZone deletes a Zone from the configured Azure resource group
+func (c *DNSAPI) DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (result autorest.Response, err error) {
 	glog.V(4).Infof("azuredns: Removing Azure DNS zone Name: %s rg: %s\n", zoneName, c.conf.Global.ResourceGroup)
-	return c.zc.Delete( c.conf.Global.ResourceGroup, zoneName, ifMatch,  cancel)
+	return c.zc.Delete(c.conf.Global.ResourceGroup, zoneName, ifMatch, cancel)
 }
 
-// New builds an Interface, with a specified azurednsAPI implementation.
-// This is useful for testing purposes, but also if we want an instance with with custom AWS options.
-func New(service *AzureDNSAPI) *Interface {
-	return &Interface{service}
-}
+// New initializes a new API interface from the --dns-provider-config
+// The --dns-provider-config option is required.
+// In the future, we could try inferring defaults.
+func New(config Config) *Interface {
 
-func NewAPI(config Config) *Interface {
-	var clients *Clients
-	clients = &Clients{}			
+	api := &DNSAPI{}
 
-	glog.V(4).Infof("azuredns: Created Azure DNS clients for subscription: %s", config.Global.SubscriptionID)
+	glog.V(4).Infof("azuredns: Created Azure DNS DNSAPI for subscription: %s", config.Global.SubscriptionID)
 
-	clients.conf = config
+	api.conf = config
 
-	clients.zc = dns.NewZonesClient(config.Global.SubscriptionID)
+	api.zc = dns.NewZonesClient(config.Global.SubscriptionID)
 	spt, err := NewServicePrincipalTokenFromCredentials(config, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
 		glog.Fatalf("azuredns: Error authenticating to Azure DNS: %v", err)
 		return nil
 	}
 
-	clients.zc.Authorizer = spt
+	api.zc.Authorizer = spt
 
-	clients.rc = dns.NewRecordSetsClient(config.Global.SubscriptionID)
+	api.rc = dns.NewRecordSetsClient(config.Global.SubscriptionID)
 	spt, err = NewServicePrincipalTokenFromCredentials(config, azure.PublicCloud.ResourceManagerEndpoint)
 	if err != nil {
 		glog.Fatalf("azuredns: Error authenticating to Azure DNS: %v", err)
 		return nil
 	}
 
-	clients.rc.Authorizer = spt
-	var api AzureDNSAPI = clients
-	return &Interface{&api}
-}
-
-func (i Interface) Zones() (zones dnsprovider.Zones, supported bool) {
-	return Zones{&i}, true
+	api.rc.Authorizer = spt
+	return &Interface{service: api}
 }
 
 func checkEnvVar(envVars *map[string]string) error {

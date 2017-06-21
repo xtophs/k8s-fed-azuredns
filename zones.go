@@ -21,18 +21,22 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
-
 )
 
 // Compile time check for interface adherence
 var _ dnsprovider.Zones = Zones{}
 
+// Zones holds a reference to the implementation of the provider specific interface_
+// that allows abstraction of the Azure DNS API.
+// During CI test, interface_ holds the mock implementation in
+// azurednsapi
 type Zones struct {
-	interface_ *Interface
+	impl *Interface
 }
 
+// List returns all zones managed by this federation provider
 func (zones Zones) List() ([]dnsprovider.Zone, error) {
-	svc := *zones.interface_.service
+	svc := zones.impl.service
 
 	azZoneList, err := svc.ListZones()
 	var zoneList []dnsprovider.Zone
@@ -40,8 +44,8 @@ func (zones Zones) List() ([]dnsprovider.Zone, error) {
 	if err == nil {
 		glog.V(5).Infof("azuredns: got %i zones\n", len(*azZoneList.Value))
 		for i := range *azZoneList.Value {
-			zone:= (*azZoneList.Value)[i]
-			zoneList = append( zoneList, &Zone{&zone, &zones}) 
+			zone := (*azZoneList.Value)[i]
+			zoneList = append(zoneList, &Zone{&zone, &zones})
 		}
 		// verifying
 		for _, z := range zoneList {
@@ -55,9 +59,10 @@ func (zones Zones) List() ([]dnsprovider.Zone, error) {
 	return zoneList, nil
 }
 
+// Add adds a new zone to Azure DNS.
 func (zones Zones) Add(zone dnsprovider.Zone) (dnsprovider.Zone, error) {
 	zoneName := zone.Name()
-	svc := *zones.interface_.service
+	svc := zones.impl.service
 	zoneParam := &dns.Zone{
 		Location: to.StringPtr("global"),
 		Name:     to.StringPtr(zoneName),
@@ -75,8 +80,9 @@ func (zones Zones) Add(zone dnsprovider.Zone) (dnsprovider.Zone, error) {
 		zones: &zones}, nil
 }
 
+// Remove deletes a zone from Azure DNS
 func (zones Zones) Remove(zone dnsprovider.Zone) error {
-	svc := *zones.interface_.service
+	svc := zones.impl.service
 	_, err := svc.DeleteZone(zone.Name(), "", nil)
 
 	if err != nil {
@@ -87,6 +93,9 @@ func (zones Zones) Remove(zone dnsprovider.Zone) error {
 	}
 	return nil
 }
+
+// New initializes a new dnsprovider.Zone instance
+// to communicate with k8s federation
 func (zones Zones) New(name string) (dnsprovider.Zone, error) {
 	zone := dns.Zone{ID: &name, Name: &name}
 	return &Zone{&zone, &zones}, nil

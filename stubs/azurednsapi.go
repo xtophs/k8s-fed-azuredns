@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* internal implements a stub for the AWS dns API, used primarily for unit testing purposes */
+// Package azuredns a stub for the Azure DNS API. It used  for unit testing purposes
 package azuredns
 
 import (
@@ -27,29 +27,17 @@ import (
 )
 
 // Compile time check for interface conformance
-var _ AzureDNSAPI = Api{}
+var _ API = MockAPI{}
 
-// Interface abstracting the Azure DNS clients from azure-sdk-for-go behind a single interface
-// The mock implementation is below
-type AzureDNSAPI interface {
-	ListZones() (dns.ZoneListResult, error)
-	CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string) (dns.Zone, error)
-	DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (result autorest.Response, err error)
-	ListResourceRecordSetsByZone(zoneName string) (dns.RecordSetListResult, error)
-	CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error)
-	DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error)
-}
-
-// AzureDNSAPIStub is a minimal implementation used for unit testing.
-// See http://http://docs.aws.amazon.com/sdk-for-go/api/service/dns.html for the full API docs
-type Api struct {
+// MockAPI is a minimal implementation used for unit testing.
+type MockAPI struct {
 	zones      map[string]*dns.Zone
 	recordSets map[string][]dns.RecordSet
 }
 
-// NewAzureDNSAPIStub returns an initialized AzureDNSAPIStub
-func NewAzureDNSAPIStub() *Api {
-	api := &Api{
+// NewAPIStub returns an initialized AzureDNSAPIStub
+func NewAPIStub() API {
+	api := &MockAPI{
 		zones:      make(map[string]*dns.Zone),
 		recordSets: make(map[string][]dns.RecordSet),
 	}
@@ -57,7 +45,8 @@ func NewAzureDNSAPIStub() *Api {
 	return api
 }
 
-func (a Api) DeleteRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (autorest.Response, error) {
+// DeleteRecordSet simulates deleting a record set
+func (a *MockAPI) DeleteRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (autorest.Response, error) {
 	result := autorest.Response{}
 
 	key := zoneName
@@ -73,7 +62,8 @@ func (a Api) DeleteRecordSets(zoneName string, relativeRecordSetName string, rec
 	return result, nil
 }
 
-func (a Api) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
+// CreateOrUpdateRecordSet simulates creating or updating a record set
+func (a *MockAPI) CreateOrUpdateRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error) {
 	var result = parameters
 	if _, ok := a.recordSets[zoneName]; ok {
 		found := -1
@@ -113,27 +103,24 @@ func (a Api) CreateOrUpdateRecordSets(zoneName string, relativeRecordSetName str
 	return result, nil
 }
 
-func (a Api) ListResourceRecordSetsByZone(zoneName string) (dns.RecordSetListResult, error) {
-	var arr []dns.RecordSet = make([]dns.RecordSet, 0)
-	result := dns.RecordSetListResult{}
-	result.Value = &arr
-
+// ListResourceRecordSetsByZone returns the records from the mock API
+func (a *MockAPI) ListResourceRecordSetsByZone(zoneName string) (*[]dns.RecordSet, error) {
+	arr := make([]dns.RecordSet, 0)
 	if len(a.recordSets) <= 0 {
-		result.Value = &[]dns.RecordSet{}
+		arr = []dns.RecordSet{}
 	} else if _, ok := a.recordSets[zoneName]; !ok {
-		result.Value = &[]dns.RecordSet{}
+		arr = []dns.RecordSet{}
 	} else {
-		// value is pointer to []RecordSet
 		rrset := a.recordSets[zoneName]
 		for _, r := range rrset {
-
-			*result.Value = append(*result.Value, dns.RecordSet{Name: r.Name, ID: r.ID, Type: r.Type, RecordSetProperties: r.RecordSetProperties})
+			arr = append(arr, dns.RecordSet{Name: r.Name, ID: r.ID, Type: r.Type, RecordSetProperties: r.RecordSetProperties})
 		}
 	}
-	return result, nil
+	return &arr, nil
 }
 
-func (a Api) ListZones() (dns.ZoneListResult, error) {
+// ListZones returns the zones from the test implementation
+func (a *MockAPI) ListZones() (dns.ZoneListResult, error) {
 	v := make([]dns.Zone, 0)
 	result := dns.ZoneListResult{
 		Value: &v,
@@ -145,7 +132,8 @@ func (a Api) ListZones() (dns.ZoneListResult, error) {
 	return result, nil
 }
 
-func (a Api) CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string) (dns.Zone, error) {
+// CreateOrUpdateZone simulates creating or updating a DNS zone
+func (a *MockAPI) CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string) (dns.Zone, error) {
 	id := zoneName
 	if _, ok := a.zones[id]; ok {
 		// zone already exists
@@ -163,7 +151,8 @@ func (a Api) CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch string, 
 	return zone, nil
 }
 
-func (a Api) DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (autorest.Response, error) {
+// DeleteZone simulates deleting a zone.
+func (a *MockAPI) DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (autorest.Response, error) {
 	result := autorest.Response{}
 
 	if len(a.recordSets[zoneName]) > 0 {

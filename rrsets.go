@@ -18,39 +18,43 @@ package azuredns
 
 import (
 	"strings"
-	"github.com/Azure/azure-sdk-for-go/arm/dns"	
+
+	"github.com/Azure/azure-sdk-for-go/arm/dns"
+	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
-	"github.com/golang/glog"
 )
 
 // Compile time check for interface adherence
 var _ dnsprovider.ResourceRecordSets = ResourceRecordSets{}
 
+// ResourceRecordSets struct point back to containing Zone.
+// It also allows navigation of the DNS hierarchy via ResourceRecordSet -> ResourceRecordSets -> Zone -> Zones
 type ResourceRecordSets struct {
 	zone *Zone
 }
 
+// List all resource record sets for this zone
 func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error) {
 
-	svc := *rrsets.zone.zones.interface_.service
+	svc := rrsets.zone.zones.impl.service
 
-	result, err := svc.ListResourceRecordSetsByZone( rrsets.zone.Name() )
+	rsets, err := svc.ListResourceRecordSetsByZone(rrsets.zone.Name())
 
 	if err != nil {
 		return nil, err
 	}
 
-	var list []dnsprovider.ResourceRecordSet = make([]dnsprovider.ResourceRecordSet, len(*result.Value))
+	list := make([]dnsprovider.ResourceRecordSet, len(*rsets))
 
-	for i := range *result.Value {
-		// value is pointer to []RecordSet 
-		var r []dns.RecordSet = *result.Value
+	for i := range *rsets {
+		// value is pointer to []RecordSet
+		r := *rsets
 		rs := r[i]
-		if( &rs != nil ) {
+		if &rs != nil {
 			glog.V(4).Infof("recordset data Name %s Type %s ID %s\n", *rs.Name, *rs.Type, *rs.ID)
 			list[i] = &ResourceRecordSet{&(r[i]), &rrsets}
-		} else { 
+		} else {
 			glog.Fatalf("Recordset was nil\n")
 		}
 	}
@@ -58,15 +62,16 @@ func (rrsets ResourceRecordSets) List() ([]dnsprovider.ResourceRecordSet, error)
 	return list, err
 }
 
+// Get array of individual ResourceRecordSet items for the current zone
 func (rrsets ResourceRecordSets) Get(name string) ([]dnsprovider.ResourceRecordSet, error) {
-	if( rrsets.zone != nil ) {
+	if rrsets.zone != nil {
 		glog.V(5).Infof("GETTING  RecordSets for zone %q, requested %q", rrsets.zone.Name(), name)
 	} else {
 		glog.V(5).Infof("DANGER GETTING zone is nil\n")
-		
+
 	}
 	rrsetList, err := rrsets.List()
-	arr := make([]dnsprovider.ResourceRecordSet, 0) 
+	arr := make([]dnsprovider.ResourceRecordSet, 0)
 
 	if err != nil {
 		return nil, err
@@ -74,7 +79,7 @@ func (rrsets ResourceRecordSets) Get(name string) ([]dnsprovider.ResourceRecordS
 	for _, rrset := range rrsetList {
 		glog.V(5).Infof("azuredns: ResourceRecrdSets Get looking for %q found %q\n", name, rrset.Name())
 		if rrset.Name() == name {
-			arr = append( arr, rrsets.New( rrset.Name(), rrset.Rrdatas(), rrset.Ttl(), rrset.Type() ) )
+			arr = append(arr, rrsets.New(rrset.Name(), rrset.Rrdatas(), rrset.Ttl(), rrset.Type()))
 		}
 	}
 
@@ -85,31 +90,38 @@ func (rrsets ResourceRecordSets) Get(name string) ([]dnsprovider.ResourceRecordS
 	return arr, nil
 }
 
-func (r ResourceRecordSets) StartChangeset() dnsprovider.ResourceRecordChangeset {
+// StartChangeset implements dnsprovider.StartChangeset.
+// The returned Changeset holds manipulations of the DNS records.
+// The changes will be executed by calling the Apply function on the ResourceRecordChangeset interface
+func (rrsets ResourceRecordSets) StartChangeset() dnsprovider.ResourceRecordChangeset {
 	return &ResourceRecordChangeset{
-		zone:   r.zone,
-		rrsets: &r,
+		zone:   rrsets.zone,
+		rrsets: &rrsets,
 	}
 }
 
-func (r ResourceRecordSets) New(name string, rrdatas []string, ttl int64, rrstype rrstype.RrsType) dnsprovider.ResourceRecordSet {
+// New returns a new, initialized dnsprovider.ResourceRecordSet to be used
+// by the federation code.
+// the dnsprovider.ResourceRecordSet acts as an adapter interface over the
+// dns.RecordSet to interface with the Azure DNS API
+func (rrsets ResourceRecordSets) New(name string, rrdatas []string, ttl int64, rrstype rrstype.RrsType) dnsprovider.ResourceRecordSet {
 	rrstypeStr := string(rrstype)
 
-	relativeName := strings.TrimSuffix( name, *r.zone.impl.Name )
-	relativeName = strings.TrimSuffix( relativeName, ".")
+	relativeName := strings.TrimSuffix(name, *rrsets.zone.impl.Name)
+	relativeName = strings.TrimSuffix(relativeName, ".")
 	rs := &dns.RecordSet{
 		Name: &relativeName,
 		Type: &rrstypeStr,
 	}
-	
+
 	rrs := ResourceRecordSet{
 		rs,
-		&r,
+		&rrsets,
 	}
 	return rrs.setRecordSetProperties(ttl, rrdatas)
 }
 
 // Zone returns the parent zone
-func (rrset ResourceRecordSets) Zone() dnsprovider.Zone {
-	return rrset.zone
+func (rrsets ResourceRecordSets) Zone() dnsprovider.Zone {
+	return rrsets.zone
 }

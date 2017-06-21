@@ -20,20 +20,25 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
-	"k8s.io/kubernetes/federation/pkg/dnsprovider"
-	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/glog"
+	"k8s.io/kubernetes/federation/pkg/dnsprovider"
+	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 )
 
 // Compile time check for interface adherence
 var _ dnsprovider.ResourceRecordSet = ResourceRecordSet{}
 
+// ResourceRecordSet implements the federation interface
+// dnsprovider.ResourceRecordSet.
+// The struct holds the Azure DNS implmentation of the corresponding RecordSet
+// It also allows navigation of the DNS hierarchy via ResourceRecordSet -> ResourceRecordSets -> Zone -> Zones
 type ResourceRecordSet struct {
 	impl   *dns.RecordSet
 	rrsets *ResourceRecordSets
 }
 
+// Name returns the absolute ResourceRecordSet name, i.e. the name includes the zone
 func (rrset ResourceRecordSet) Name() string {
 	if *rrset.impl.Name == "@" {
 		return *rrset.impl.Name
@@ -44,10 +49,12 @@ func (rrset ResourceRecordSet) Name() string {
 	return *rrset.impl.Name + "." + rrset.rrsets.zone.Name()
 }
 
+// Rrdatas returns the record set details in string[] format.
 func (rrset ResourceRecordSet) Rrdatas() []string {
 	return rrset.getRrDatas()
 }
 
+// Ttl returns the RecordSets time-to-live
 func (rrset ResourceRecordSet) Ttl() int64 {
 	// same behavior as the route 53 provider
 	if rrset.impl.TTL != nil {
@@ -56,13 +63,14 @@ func (rrset ResourceRecordSet) Ttl() int64 {
 	return 0
 }
 
+// Type returns the DNS record type of this ResourceRecordSet
 func (rrset ResourceRecordSet) Type() rrstype.RrsType {
+	// Azure DNS API prefixes the type with Microsoft.Network/dnszones/.
+	// k8s expects only the DNS record type
 	return rrstype.RrsType(strings.TrimPrefix(*rrset.impl.Type, "Microsoft.Network/dnszones/"))
 }
 
-
-
-func (rrset ResourceRecordSet) toRecordSet () *dns.RecordSet {
+func (rrset ResourceRecordSet) toRecordSet() *dns.RecordSet {
 	recType := string(rrset.Type())
 	// make sure to use the relative name of the RecordSet
 	nameCopy := string([]byte(*rrset.impl.Name))
@@ -70,23 +78,22 @@ func (rrset ResourceRecordSet) toRecordSet () *dns.RecordSet {
 	r := &dns.RecordSet{
 		Name: &nameCopy,
 		Type: to.StringPtr(recType),
-		ID: &nameCopy,
+		ID:   &nameCopy,
 	}
 
 	glog.V(5).Infof("New RecordSet: Name: %s ID: %s, Type: %s\n", *r.Name, *r.ID, *r.Type)
-	
+
 	addRrDatasToRecordSet(r, rrset.Rrdatas())
 	r.RecordSetProperties.TTL = to.Int64Ptr(rrset.Ttl())
 	return r
 }
 
-// TODO: Refactor to RecordSet type	
 func (rrset ResourceRecordSet) getRrDatas() []string {
 
 	props := rrset.impl.RecordSetProperties
 	var rrDatas []string
 
-	switch strings.TrimPrefix(string(rrset.Type()), "Microsoft.Network/dnszones/") {
+	switch rrset.Type() {
 	case "A":
 		rrDatas = make([]string, len(*props.ARecords))
 
@@ -96,16 +103,16 @@ func (rrset ResourceRecordSet) getRrDatas() []string {
 		}
 
 	case "AAAA":
-		rrDatas = make([]string, len(*props.AAAARecords))
+		rrDatas = make([]string, len(*props.AaaaRecords))
 
-		for i := range *props.AAAARecords {
-			rec := *props.AAAARecords
+		for i := range *props.AaaaRecords {
+			rec := *props.AaaaRecords
 			rrDatas[i] = *rec[i].Ipv6Address
 		}
 
 	case "CNAME":
 		rrDatas = make([]string, 1)
-		rrDatas[0] = *props.CNAMERecord.Cname
+		rrDatas[0] = *props.CnameRecord.Cname
 	}
 
 	return rrDatas
@@ -120,14 +127,14 @@ func addRrDatasToRecordSet(rs *dns.RecordSet, rrDatas []string) {
 	case "A":
 		recs := make([]dns.ARecord, 0)
 
-		rrmap := make( map[string]string )
+		rrmap := make(map[string]string)
 
 		for i = range rrDatas {
-			if _, ok := rrmap[ rrDatas[i] ]; !ok {
+			if _, ok := rrmap[rrDatas[i]]; !ok {
 				rrmap[rrDatas[i]] = rrDatas[i]
-				recs = append( recs, dns.ARecord{
+				recs = append(recs, dns.ARecord{
 					Ipv4Address: to.StringPtr(rrDatas[i]),
-				} )
+				})
 			}
 		}
 		props.ARecords = &recs
@@ -139,11 +146,11 @@ func addRrDatasToRecordSet(rs *dns.RecordSet, rrDatas []string) {
 				Ipv6Address: to.StringPtr(rrDatas[i]),
 			}
 		}
-		props.AAAARecords = &recs
+		props.AaaaRecords = &recs
 
 	case "CNAME":
 		for i = range rrDatas {
-			props.CNAMERecord = &dns.CnameRecord{
+			props.CnameRecord = &dns.CnameRecord{
 				Cname: to.StringPtr(rrDatas[i]),
 			}
 		}
@@ -159,4 +166,3 @@ func (rrset ResourceRecordSet) setRecordSetProperties(ttl int64, rrDatas []strin
 
 	return rrset
 }
-
