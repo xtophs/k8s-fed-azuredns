@@ -29,8 +29,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
-	//"k8s.io/kubernetes/federation/pkg/dnsprovider/providers/azure/azuredns/stubs"
-
+	azurestub "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/azure/azuredns/stubs"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/tests"
 )
@@ -50,10 +49,16 @@ func newTestInterface() (dnsprovider.Interface, error) {
 }
 
 func newAzureDNSProvider() (dnsprovider.Interface, error) {
-	//return nil, fmt.Errorf("Need to set up provider credentials. azuredns_test.go:newAzureDNSProvider for detail\n")
-	i, err := dnsprovider.GetDnsProvider(ProviderName, strings.NewReader("\n[Global]\nsubscription-id = ffa90503-6fe8-4ab5-9bf1-059f81a6d8bb\ntenant-id = 66841164-1e0e-4ffc-a0d2-ce36f95ec41d\nclient-id = eebec4ca-c175-45dc-b763-943607ce4838\nsecret = 9f4ba4e0-be35-4821-9aa6-4caadfaba4fa\nresourceGroup = delete-dns"))
+	// Did you add the azure subscription configuration to the line below and uncomment
+	//configString := strings.NewReader("\n[Global]\nsubscription-id = [subscription id]\ntenant-id = [tenant id]\nclient-id = [sp client id]\nsecret = [sp secret]\nresourceGroup = [rg name]"
+	configString := ""
 
-	//i, err := dnsprovider.GetDnsProvider(ProviderName, strings.NewReader("\n[Global]\nsubscription-id = [subscription id]\ntenant-id = [tenant id]\nclient-id = [sp client id]\nsecret = [sp secret]\nresourceGroup = [rg name]"))
+	if len(configString) == 0 {
+		fmt.Printf("Azure subscription not configured")
+		os.Exit(1)
+	}
+
+	i, err := dnsprovider.GetDnsProvider(ProviderName, configString))
 	if i == nil || err != nil {
 		fmt.Printf("DNS provider %s not registered", ProviderName)
 		os.Exit(1)
@@ -64,11 +69,11 @@ func newAzureDNSProvider() (dnsprovider.Interface, error) {
 
 func newFakeInterface() (dnsprovider.Interface, error) {
 	zoneName := "example.com"
-	api := NewAzureDNSAPIStub()
-	var svc AzureDNSAPI
+	api := azurestub.NewAPIStub()
+	var svc azurestub.API
 	svc = api
 
-	iface := New(&svc)
+	iface := &Interface{service: api}
 
 	// Add a fake zone to test against.
 	params := dns.Zone{
@@ -87,6 +92,9 @@ func newFakeInterface() (dnsprovider.Interface, error) {
 	}
 	return iface, nil
 }
+
+var interface_ dnsprovider.Interface
+
 func TestMain(m *testing.M) {
 	fmt.Printf("Parsing flags.\n")
 	flag.Parse()
@@ -422,8 +430,7 @@ func TestResourceRecordSetsRemoveGone(t *testing.T) {
 }
 
 func TestResourceRecordSetPaging(t *testing.T) {
-
-	count := 1
+	count := 10
 	zone := firstZone(t)
 	sets := rrs(t, zone)
 	addchanges := sets.StartChangeset()
@@ -446,7 +453,7 @@ func TestResourceRecordSetPaging(t *testing.T) {
 	rrset, err := rrsets.List()
 	if err != nil {
 		t.Fatalf("Failed to list recordsets: %v", err)
-	} else if len(rrset) != count+2 {
+	} else if len(rrset) < count {
 		t.Fatalf("Record set length=%d, expected >= %d", len(rrset), count)
 	} else {
 		t.Logf("Got %d recordsets as expected", len(rrset))

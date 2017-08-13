@@ -2,6 +2,8 @@ package azuredns
 
 import (
 	"encoding/json"
+
+	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
 )
 
@@ -19,10 +21,12 @@ func ToJSON(v interface{}) (string, error) {
 // NewServicePrincipalTokenFromCredentials creates a new ServicePrincipalToken using values of the
 // passed credentials map.
 // This implementation is "borrowed" from a later version of the azuresdk-for-go/arm/examples
-func NewServicePrincipalTokenFromCredentials(config Config, scope string) (*azure.ServicePrincipalToken, error) {
-	oauthConfig, err := azure.PublicCloud.OAuthConfigForTenant(config.Global.TenantID)
+func NewServicePrincipalTokenFromCredentials(config Config, scope string) (*adal.ServicePrincipalToken, error) {
+
+	oauthConfig, err := adal.NewOAuthConfig(azure.PublicCloud.ActiveDirectoryEndpoint, config.Global.TenantID)
 	if err != nil {
 		panic(err)
 	}
-	return azure.NewServicePrincipalToken(*oauthConfig, config.Global.ClientID, config.Global.Secret, scope)
+
+	return adal.NewServicePrincipalToken(*oauthConfig, config.Global.ClientID, config.Global.Secret, scope)
 }

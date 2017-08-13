@@ -26,8 +26,17 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 )
 
+type API interface {
+	ListZones() (dns.ZoneListResult, error)
+	CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string) (dns.Zone, error)
+	DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error)
+	ListResourceRecordSetsByZone(zoneName string) (*[]dns.RecordSet, error)
+	CreateOrUpdateRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error)
+	DeleteRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error)
+}
+
 // Compile time check for interface conformance
-var _ API = MockAPI{}
+var _ API = &MockAPI{}
 
 // MockAPI is a minimal implementation used for unit testing.
 type MockAPI struct {
@@ -152,17 +161,28 @@ func (a *MockAPI) CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch str
 }
 
 // DeleteZone simulates deleting a zone.
-func (a *MockAPI) DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (autorest.Response, error) {
-	result := autorest.Response{}
+func (a *MockAPI) DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error) {
+	err := make(chan error, 1)
+	result := make(chan dns.ZoneDeleteResult, 1)
 
 	if len(a.recordSets[zoneName]) > 0 {
-		return result, fmt.Errorf("Error deleting hosted DNS zone: %s has resource records", zoneName)
+		err <- fmt.Errorf("Error deleting hosted DNS zone: %s has resource records", zoneName)
+		return nil, err
 	}
+
+	defer func() {
+		result <- dns.ZoneDeleteResult{
+			Status:     "Succeeded",
+			StatusCode: "OK",
+		}
+		close(err)
+		close(result)
+	}()
 
 	if z, ok := a.zones[zoneName]; ok {
 		if ifMatch == "" || *z.Etag == ifMatch {
 			delete(a.zones, zoneName)
 		}
 	}
-	return result, nil
+	return result, err
 }

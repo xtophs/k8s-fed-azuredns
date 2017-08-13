@@ -25,25 +25,19 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
+	azurestub "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/azure/azuredns/stubs"
 )
 
 // API is an interface abstracting the Azure DNS clients from azure-sdk-for-go behind a single interface
 // The mock implementation is below
-type API interface {
-	ListZones() (dns.ZoneListResult, error)
-	CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch string, ifNoneMatch string) (dns.Zone, error)
-	DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (result autorest.Response, err error)
-	ListResourceRecordSetsByZone(zoneName string) (*[]dns.RecordSet, error)
-	CreateOrUpdateRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, parameters dns.RecordSet, ifMatch string, ifNoneMatch string) (dns.RecordSet, error)
-	DeleteRecordSet(zoneName string, relativeRecordSetName string, recordType dns.RecordType, ifMatch string) (result autorest.Response, err error)
-}
+// The interface is defined in stubs/azurednsapi.go
 
 // Compile time check for interface adherence
 var _ dnsprovider.Interface = Interface{}
 
 // Interface is the abstraction layer to allow for mocking
 type Interface struct {
-	service API
+	service azurestub.API
 }
 
 // Zones initializes a new Zones interface, which is the root
@@ -53,7 +47,7 @@ func (c Interface) Zones() (dnsprovider.Zones, bool) {
 }
 
 // compile time check
-var _ API = &DNSAPI{}
+var _ azurestub.API = &DNSAPI{}
 
 // DNSAPI implements the API interface, which abstracts a small subset of
 // the Azure SDK DNS API for mocking purposes
@@ -126,7 +120,7 @@ func (c *DNSAPI) CreateOrUpdateZone(zoneName string, zone dns.Zone, ifMatch stri
 }
 
 // DeleteZone deletes a Zone from the configured Azure resource group
-func (c *DNSAPI) DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (result autorest.Response, err error) {
+func (c *DNSAPI) DeleteZone(zoneName string, ifMatch string, cancel <-chan struct{}) (<-chan dns.ZoneDeleteResult, <-chan error) {
 	glog.V(4).Infof("azuredns: Removing Azure DNS zone Name: %s rg: %s\n", zoneName, c.conf.Global.ResourceGroup)
 	return c.zc.Delete(c.conf.Global.ResourceGroup, zoneName, ifMatch, cancel)
 }
@@ -135,11 +129,9 @@ func (c *DNSAPI) DeleteZone(zoneName string, ifMatch string, cancel <-chan struc
 // The --dns-provider-config option is required.
 // In the future, we could try inferring defaults.
 func New(config Config) *Interface {
-
 	api := &DNSAPI{}
 
 	glog.V(4).Infof("azuredns: Created Azure DNS DNSAPI for subscription: %s", config.Global.SubscriptionID)
-
 	api.conf = config
 
 	api.zc = dns.NewZonesClient(config.Global.SubscriptionID)
@@ -149,7 +141,7 @@ func New(config Config) *Interface {
 		return nil
 	}
 
-	api.zc.Authorizer = spt
+	api.zc.Authorizer = autorest.NewBearerAuthorizer(spt)
 
 	api.rc = dns.NewRecordSetsClient(config.Global.SubscriptionID)
 	spt, err = NewServicePrincipalTokenFromCredentials(config, azure.PublicCloud.ResourceManagerEndpoint)
@@ -158,7 +150,7 @@ func New(config Config) *Interface {
 		return nil
 	}
 
-	api.rc.Authorizer = spt
+	api.rc.Authorizer = autorest.NewBearerAuthorizer(spt)
 	return &Interface{service: api}
 }
 

@@ -84,12 +84,12 @@ func (zones Zones) Add(zone dnsprovider.Zone) (dnsprovider.Zone, error) {
 func (zones Zones) Remove(zone dnsprovider.Zone) error {
 	svc := zones.impl.service
 	_, err := svc.DeleteZone(zone.Name(), "", nil)
-
-	if err != nil {
+	errval := <-err
+	if errval != nil {
 		// TODO: Fix go azure sdk version
 		// Is now async
-		glog.V(0).Infof("Error Deleting Azure DNS Zone %s %v\n", zone.Name(), err.Error())
-		return err
+		glog.V(0).Infof("Error Deleting Azure DNS Zone %s %v\n", zone.Name(), errval.Error())
+		return errval
 	}
 	return nil
 }
