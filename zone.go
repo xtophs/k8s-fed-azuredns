@@ -28,7 +28,7 @@ var _ dnsprovider.Zone = &Zone{}
 // Azure DNS.
 // It also allows navigation of the DNS hierarchy via ResourceRecordSet -> ResourceRecordSets -> Zone -> Zones
 type Zone struct {
-	impl *dns.Zone
+	impl  *dns.Zone
 	zones *Zones
 }
 

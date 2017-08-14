@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
@@ -58,7 +57,7 @@ func newAzureDNSProvider() (dnsprovider.Interface, error) {
 		os.Exit(1)
 	}
 
-	i, err := dnsprovider.GetDnsProvider(ProviderName, configString))
+	i, err := dnsprovider.GetDnsProvider(ProviderName, configString)
 	if i == nil || err != nil {
 		fmt.Printf("DNS provider %s not registered", ProviderName)
 		os.Exit(1)
